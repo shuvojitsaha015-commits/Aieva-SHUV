@@ -1,0 +1,17 @@
+#:kivy 2.3
+#
+# The shared look and feel of the Aieva application.
+#
+# The screens are built in Python (see ``aieva/ui/screens/``); this file
+# carries the background that every screen shares, so the colours live in
+# exactly one place (``aieva/ui/theme.py``).
+
+#:import theme aieva.ui.theme
+
+<Screen>:
+    canvas.before:
+        Color:
+            rgba: theme.BACKGROUND
+        Rectangle:
+            pos: self.pos
+            size: self.size

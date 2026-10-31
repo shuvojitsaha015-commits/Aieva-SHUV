@@ -1,0 +1,42 @@
+{
+  "problem_type": "rate_tank",
+  "variables": [
+    {
+      "name": "inflow",
+      "description": "both taps together",
+      "value": 25,
+      "unit": "L/min"
+    },
+    {
+      "name": "outflow",
+      "description": "nothing goes out",
+      "value": 0,
+      "unit": "L/min"
+    },
+    {
+      "name": "volume",
+      "description": "capacity of the tank",
+      "value": 100,
+      "unit": "L"
+    },
+    {
+      "name": "initial",
+      "description": "water in the tank",
+      "value": 0,
+      "unit": "L"
+    }
+  ],
+  "equations": [
+    "V = V0 + (inflow - outflow)*t"
+  ],
+  "unknowns": [
+    "time",
+    "net_rate"
+  ],
+  "visualization_hint": "the level against the time",
+  "parameters_for_sliders": [
+    "inflow"
+  ],
+  "assumptions": [],
+  "source_text": "Two taps of 10 l/min and 15 l/min fill a 100 l tank. How long does it take?"
+}

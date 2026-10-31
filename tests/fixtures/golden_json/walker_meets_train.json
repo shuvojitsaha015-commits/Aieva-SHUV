@@ -1,0 +1,44 @@
+{
+  "problem_type": "uniform_motion",
+  "variables": [
+    {
+      "name": "v1",
+      "description": "speed of the walker",
+      "value": 1.4,
+      "unit": "m/s"
+    },
+    {
+      "name": "v2",
+      "description": "speed of the train",
+      "value": 12,
+      "unit": "m/s"
+    },
+    {
+      "name": "x1",
+      "description": "the walker is 300 m ahead of the station",
+      "value": 300,
+      "unit": "m"
+    },
+    {
+      "name": "x2",
+      "description": "the train leaves the station",
+      "value": 0,
+      "unit": "m"
+    }
+  ],
+  "equations": [
+    "x1 = 300 + 1.4*t",
+    "x2 = 0 + 12*t"
+  ],
+  "unknowns": [
+    "meeting_time",
+    "meeting_point"
+  ],
+  "visualization_hint": "two position lines",
+  "parameters_for_sliders": [
+    "v1",
+    "v2"
+  ],
+  "assumptions": [],
+  "source_text": "A walker moves at 1.4 m/s and is already 300 m ahead of the station. A train leaves the station at 12 m/s. When does the train catch the walker?"
+}

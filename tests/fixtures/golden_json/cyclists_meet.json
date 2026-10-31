@@ -1,0 +1,44 @@
+{
+  "problem_type": "uniform_motion",
+  "variables": [
+    {
+      "name": "v1",
+      "description": "speed of the first cyclist",
+      "value": 8,
+      "unit": "m/s"
+    },
+    {
+      "name": "v2",
+      "description": "speed of the second cyclist",
+      "value": 12,
+      "unit": "m/s"
+    },
+    {
+      "name": "x1",
+      "description": "start of the first cyclist",
+      "value": 100,
+      "unit": "m"
+    },
+    {
+      "name": "x2",
+      "description": "start of the second cyclist",
+      "value": 0,
+      "unit": "m"
+    }
+  ],
+  "equations": [
+    "x1 = 100 + 8*t",
+    "x2 = 0 + 12*t"
+  ],
+  "unknowns": [
+    "meeting_time",
+    "meeting_point"
+  ],
+  "visualization_hint": "position against time",
+  "parameters_for_sliders": [
+    "v1",
+    "v2"
+  ],
+  "assumptions": [],
+  "source_text": "Two cyclists ride towards each other, one at 8 m/s from 100 m, the other at 12 m/s. When and where do they meet?"
+}

@@ -1,0 +1,8 @@
+# Aieva cloud / fog server (FastAPI + Gemini).
+fastapi
+uvicorn[standard]
+google-genai
+python-dotenv
+pydantic
+httpx
+python-multipart

@@ -1,0 +1,37 @@
+{
+  "problem_type": "optimization",
+  "variables": [
+    {
+      "name": "L",
+      "description": "length of the fence",
+      "value": 40,
+      "unit": "m"
+    },
+    {
+      "name": "x_min",
+      "description": "smallest side",
+      "value": 0,
+      "unit": "m"
+    },
+    {
+      "name": "x_max",
+      "description": "largest side",
+      "value": 40,
+      "unit": "m"
+    }
+  ],
+  "equations": [
+    "A = x*(L - x)"
+  ],
+  "unknowns": [
+    "x",
+    "objective"
+  ],
+  "visualization_hint": "the area against the side with the maximum marked",
+  "parameters_for_sliders": [
+    "x_min",
+    "x_max"
+  ],
+  "assumptions": [],
+  "source_text": "A farmer has 40 m of fence for a rectangular field against a wall. What is the largest area?"
+}

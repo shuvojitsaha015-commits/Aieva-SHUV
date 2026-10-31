@@ -1,0 +1,44 @@
+{
+  "problem_type": "uniform_motion",
+  "variables": [
+    {
+      "name": "v1",
+      "description": "speed of the car",
+      "value": 15,
+      "unit": "m/s"
+    },
+    {
+      "name": "v2",
+      "description": "speed of the bus",
+      "value": 10,
+      "unit": "m/s"
+    },
+    {
+      "name": "x1",
+      "description": "start of the car",
+      "value": 0,
+      "unit": "m"
+    },
+    {
+      "name": "x2",
+      "description": "start of the bus",
+      "value": 200,
+      "unit": "m"
+    }
+  ],
+  "equations": [
+    "x1 = 0 + 15*t",
+    "x2 = 200 + 10*t"
+  ],
+  "unknowns": [
+    "meeting_time",
+    "meeting_point"
+  ],
+  "visualization_hint": "position against time with the meeting point",
+  "parameters_for_sliders": [
+    "v1",
+    "v2"
+  ],
+  "assumptions": [],
+  "source_text": "A car drives at 15 m/s, a bus ahead of it drives at 10 m/s and is 200 m away. When does the car catch the bus?"
+}

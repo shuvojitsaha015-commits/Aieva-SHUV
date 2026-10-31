@@ -1,0 +1,22 @@
+{
+  "problem_type": "geometry",
+  "variables": [
+    {
+      "name": "r",
+      "description": "radius",
+      "value": 3,
+      "unit": "m"
+    }
+  ],
+  "equations": [
+    "A = pi*r**2"
+  ],
+  "unknowns": [
+    "area",
+    "perimeter"
+  ],
+  "visualization_hint": "the circle with the radius",
+  "parameters_for_sliders": [],
+  "assumptions": [],
+  "source_text": "A circle has a radius of 3 m. What is its area and its circumference?"
+}

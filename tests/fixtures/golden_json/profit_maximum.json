@@ -1,0 +1,31 @@
+{
+  "problem_type": "optimization",
+  "variables": [
+    {
+      "name": "x_min",
+      "description": "smallest price",
+      "value": 0,
+      "unit": "EUR"
+    },
+    {
+      "name": "x_max",
+      "description": "largest price",
+      "value": 15,
+      "unit": "EUR"
+    }
+  ],
+  "equations": [
+    "P = -x**2 + 20*x - 50"
+  ],
+  "unknowns": [
+    "x",
+    "objective"
+  ],
+  "visualization_hint": "the profit against the price",
+  "parameters_for_sliders": [
+    "x_min",
+    "x_max"
+  ],
+  "assumptions": [],
+  "source_text": "The profit of a shop is P = -x^2 + 20x - 50. Which price gives the biggest profit?"
+}

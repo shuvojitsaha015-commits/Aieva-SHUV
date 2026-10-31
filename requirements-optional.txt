@@ -1,0 +1,15 @@
+# Optional extras. NEVER required for the core to work.
+# Install with:  pip install -r requirements-optional.txt
+#
+# pix2text        local OCR (pulls in torch - large, slow, hard on Android)
+# latex2sympy2    alternative LaTeX -> SymPy backend
+# marker-pdf      better document -> markdown+LaTeX extraction (heavy)
+# ollama          local LLM fallback
+# wolframalpha    optional answer verification
+# manim           pre-rendered animations (stretch goal)
+pix2text
+latex2sympy2
+marker-pdf
+ollama
+wolframalpha
+manim

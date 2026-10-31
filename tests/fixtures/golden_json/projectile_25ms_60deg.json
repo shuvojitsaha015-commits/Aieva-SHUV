@@ -1,0 +1,40 @@
+{
+  "problem_type": "kinematic_projectile",
+  "variables": [
+    {
+      "name": "v0",
+      "description": "initial speed",
+      "value": 25,
+      "unit": "m/s"
+    },
+    {
+      "name": "theta",
+      "description": "launch angle",
+      "value": 60,
+      "unit": "deg"
+    },
+    {
+      "name": "g",
+      "description": "gravity",
+      "value": 9.8,
+      "unit": "m/s^2"
+    }
+  ],
+  "equations": [
+    "y = v0*sin(theta)*t - 0.5*g*t**2",
+    "x = v0*cos(theta)*t"
+  ],
+  "unknowns": [
+    "max_height",
+    "range"
+  ],
+  "visualization_hint": "trajectory",
+  "parameters_for_sliders": [
+    "v0",
+    "theta"
+  ],
+  "assumptions": [
+    "g = 9.8 m/s^2"
+  ],
+  "source_text": "A stone is thrown with 25 m/s at 60 degrees. How high does it get?"
+}

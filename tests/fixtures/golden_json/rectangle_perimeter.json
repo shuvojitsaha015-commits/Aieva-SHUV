@@ -1,0 +1,31 @@
+{
+  "problem_type": "optimization",
+  "variables": [
+    {
+      "name": "x_min",
+      "description": "smallest side",
+      "value": 0,
+      "unit": "m"
+    },
+    {
+      "name": "x_max",
+      "description": "largest side",
+      "value": 15,
+      "unit": "m"
+    }
+  ],
+  "equations": [
+    "A = x*(15 - x)"
+  ],
+  "unknowns": [
+    "x",
+    "objective"
+  ],
+  "visualization_hint": "the area of the rectangle",
+  "parameters_for_sliders": [
+    "x_min",
+    "x_max"
+  ],
+  "assumptions": [],
+  "source_text": "A rectangle has a perimeter of 30 m. What is the largest possible area?"
+}

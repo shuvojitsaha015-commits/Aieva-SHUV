@@ -1,0 +1,29 @@
+{
+  "problem_type": "geometry",
+  "variables": [
+    {
+      "name": "a",
+      "description": "first side",
+      "value": 3,
+      "unit": "m"
+    },
+    {
+      "name": "b",
+      "description": "second side",
+      "value": 4,
+      "unit": "m"
+    }
+  ],
+  "equations": [
+    "A = a*b/2",
+    "c = sqrt(a**2 + b**2)"
+  ],
+  "unknowns": [
+    "area",
+    "perimeter"
+  ],
+  "visualization_hint": "the right triangle with its sides",
+  "parameters_for_sliders": [],
+  "assumptions": [],
+  "source_text": "A right triangle has the sides 3 m and 4 m. What is its area and how long is the hypotenuse?"
+}

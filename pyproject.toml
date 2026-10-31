@@ -1,0 +1,57 @@
+[project]
+name = "aieva"
+version = "1.0.0"
+description = "Aieva - screen-aware AI educational visualization assistant (Math edition)"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Aieva Team" }]
+
+[project.scripts]
+aieva-server = "server.main:run"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["aieva", "aieva.core", "aieva.ui"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["build", "dist", ".buildozer", ".aieva_cache"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "C4"]
+ignore = [
+    "E501",    # long lines are handled by black
+    "B008",    # function call in default argument (fastapi dependency idiom)
+    "SIM105",  # contextlib.suppress is slower to read in hot paths
+    "SIM108",  # explicit if/else is often clearer than a ternary
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B011"]
+"aieva/ui/*" = ["B006"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["aieva", "server"]
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+extend-exclude = "build|dist|.buildozer"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-q --strict-markers"
+markers = [
+    "live: tests that need a real Gemini API key (skipped otherwise)",
+    "ui: tests that need a Kivy window (require a display / Xvfb)",
+    "slow: long running tests",
+]
+filterwarnings = ["ignore::DeprecationWarning"]

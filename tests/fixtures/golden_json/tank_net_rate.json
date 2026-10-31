@@ -1,0 +1,43 @@
+{
+  "problem_type": "rate_tank",
+  "variables": [
+    {
+      "name": "inflow",
+      "description": "water coming in",
+      "value": 30,
+      "unit": "L/min"
+    },
+    {
+      "name": "outflow",
+      "description": "water going out",
+      "value": 20,
+      "unit": "L/min"
+    },
+    {
+      "name": "volume",
+      "description": "capacity of the tank",
+      "value": 600,
+      "unit": "L"
+    },
+    {
+      "name": "initial",
+      "description": "water in the tank",
+      "value": 0,
+      "unit": "L"
+    }
+  ],
+  "equations": [
+    "V = V0 + (inflow - outflow)*t"
+  ],
+  "unknowns": [
+    "time",
+    "net_rate"
+  ],
+  "visualization_hint": "the level against the time and a tank diagram",
+  "parameters_for_sliders": [
+    "inflow",
+    "outflow"
+  ],
+  "assumptions": [],
+  "source_text": "A tank of 600 l receives 30 l/min and loses 20 l/min. How long until it is full?"
+}

@@ -1,0 +1,15 @@
+# Aieva desktop application (Kivy) and local math core.
+kivy>=2.3
+kivy-garden.matplotlib
+sympy>=1.12
+antlr4-python3-runtime==4.11.*
+numpy
+scipy
+mpmath
+matplotlib
+pillow
+opencv-python-headless
+requests
+python-dotenv
+pydantic
+httpx
