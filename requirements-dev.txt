@@ -1,0 +1,6 @@
+# Aieva development and CI toolchain.
+# These are the packages referenced by the README and GitHub Actions workflow.
+ruff
+black
+pytest
+pytest-cov
