@@ -41,6 +41,8 @@ from aieva.core.models import ParsedInput  # noqa: E402
 from aieva.core.ocr.worker import OcrWorker  # noqa: E402
 from aieva.core.plugin_base import SubjectPlugin  # noqa: E402
 from aieva.core.plugin_registry import get_plugin, subject_metas  # noqa: E402
+from aieva.core.service.config import ServiceConfig  # noqa: E402
+from aieva.core.service.runner import BackgroundService  # noqa: E402
 from aieva.core.user_settings import UserSettings  # noqa: E402
 from aieva.ui import theme  # noqa: E402
 from aieva.ui.error_handler import install_global_handler  # noqa: E402
@@ -139,6 +141,12 @@ class AievaApp(App):
         self.whiteboard_screen.apply_settings(self.user_settings)
         self.settings_screen.on_settings_saved = self._on_settings_saved
 
+        # The background service: it watches the board while the teacher works.
+        self.service: BackgroundService | None = None
+        self.settings_screen.on_service_action = self._on_service_action
+        if self.user_settings.background_service:
+            self.start_background_service()
+
         # The navigation bar is on every screen - the settings have their own
         # tab, so the teacher never has to look for them.
         self.tab_bar = TabBar(TABS)
@@ -190,6 +198,60 @@ class AievaApp(App):
         worker = getattr(self, "ocr_worker", None)
         if worker is not None:
             worker.stop()
+        self.stop_background_service()
+
+    # ------------------------------------------------------ the background service
+    def start_background_service(self) -> None:
+        """Start the watcher of the board (it runs in a thread)."""
+        if self.service is not None and self.service.is_running:
+            return
+        config = ServiceConfig.from_env()
+        self.service = BackgroundService(config=config, notifier=self._on_service_result)
+        self.service.start()
+        self.settings_screen.set_service_status("The service is watching the board.")
+
+    def stop_background_service(self) -> None:
+        """Stop the watcher of the board."""
+        if self.service is not None:
+            self.service.stop()
+            self.service = None
+        self.settings_screen.set_service_status("The service is stopped.")
+
+    def _on_service_result(self, payload: dict[str, Any]) -> None:
+        """The service read the board - the status of the settings follows."""
+        Clock.schedule_once(lambda _dt: self._show_service_result(payload), 0)
+
+    def _show_service_result(self, payload: dict[str, Any]) -> None:
+        reading = payload.get("plain") or payload.get("latex") or ""
+        answer = payload.get("answer") or ""
+        text = f"The board was read: {reading}" if reading else "The board was read."
+        if answer:
+            text += f"  {answer}"
+        self.settings_screen.set_service_status(text)
+
+    def _on_service_action(self, action: str) -> None:
+        """The teacher pressed a button of the background service."""
+        if action == "start":
+            self.start_background_service()
+        elif action == "stop":
+            self.stop_background_service()
+        elif action == "install":
+            self._install_autostart()
+        self._refresh_service_status()
+
+    def _install_autostart(self) -> None:
+        """Start the service automatically with the computer."""
+        from aieva.core.service.autostart import install_autostart
+
+        message = install_autostart(project_dir=Path.cwd())
+        self.settings_screen.set_service_status(message.splitlines()[0])
+
+    def _refresh_service_status(self) -> None:
+        service = self.service
+        if service is None or not service.is_running:
+            self.settings_screen.set_service_status("The service is stopped.")
+        else:
+            self.settings_screen.set_service_status("The service is watching the board.")
 
     # --------------------------------------------------------------- state
     @property

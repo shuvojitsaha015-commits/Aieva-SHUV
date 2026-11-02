@@ -13,8 +13,8 @@ ENV/
 
 # --- secrets and local configuration ---
 .env
-.env.*
-!.env.example
+.env
+!.env
 *.pem
 *.key
 
@@ -52,3 +52,8 @@ htmlcov/
 *.swp
 .DS_Store
 Thumbs.db
+
+UPDATE.md
+aieva-update.zip
+
+.env

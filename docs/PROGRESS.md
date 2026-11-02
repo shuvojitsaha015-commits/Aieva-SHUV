@@ -13,7 +13,7 @@
 - Created `docs/MANUAL_STEPS_NEEDED.md` with the exact checklist from the plan
   (Python 3.11, GitHub repo, Gemini key, Wolfram AppID, OpenAI key, server hosting,
   test hardware, Docker, test images) plus a "how to unblock" section and a status table.
-- Created `.env.example` with exactly the variables required by the plan:
+- Created `../.env` with exactly the variables required by the plan:
   `GEMINI_API_KEY`, `GEMINI_MODEL`, `OPENAI_API_KEY`, `WOLFRAM_APP_ID`,
   `AIEVA_SERVER_URL`, `AIEVA_OFFLINE_MODE`, `AIEVA_CACHE_DIR`.
 - Every API-key / hardware dependency is mocked or optional from this point on.
@@ -732,3 +732,69 @@ The repository was made ready for GitHub: only the product is in it.
 ### Verified
 - `pytest`: **532 passed, 2 skipped**; `ruff check .` and `black --check .`
   are clean.
+
+---
+
+## Phase 13 - The background service of the board (instructor request)
+
+**Status:** DONE (the service runs on its own; the cloud OCR still needs a key)
+
+The instructor asked for an **application that works in the background of the
+smart board** - fully automatic, without any hassle. The application itself
+was already there; what was missing was the part that works *while nobody
+touches the computer*.
+
+### Done
+- **New package `aieva/core/service/`** (pure Python, no Kivy - the core
+  stays headless):
+  - `config.py` - `ServiceConfig` (the source, the interval, the folders, the
+    thresholds) read from the environment (`AIEVA_SERVICE_*`).
+  - `state.py` - the status file (`ServiceState`, an atomic write).
+  - `triggers.py` - `TriggerPolicy`: the board is only read again when it
+    really changed (thumbnail comparison + a minimum pause + a limit per
+    minute).
+  - `sources.py` - `FolderSource` (the newest picture of a folder) and the
+    choice of the source (`desktop` / `folder` / `auto`).
+  - `runner.py` - `BackgroundService`: capture → change check → OCR → solve →
+    draw → publish (the outbox, the history, the status file, the file of the
+    floating window). It runs in a thread and survives every error.
+  - `autostart.py` - the automatic start: a task of the Windows task scheduler
+    (`ONLOGON` / `ONSTART`, started with `pythonw.exe`, so no console window),
+    a systemd unit (Linux / Termux) and a launch agent (macOS).
+  - `overlay.py` - the pure data of the floating window (no Kivy).
+  - `__main__.py` - the command line: `run`, `once`, `status`,
+    `install-autostart`, `uninstall-autostart`, `overlay`.
+- **`python -m aieva`** starts the service (one command for the board).
+- **`aieva/ui/board_overlay.py`** - the floating window above the board: it
+  shows what was read, the solution and the graph, and disappears again after
+  a few seconds. It is a separate process and only reads the result file.
+- **The window of the teacher** and the service are one system:
+  - the **Settings** tab got a *Background service* block (a switch, the live
+    status, *Start*, *Stop*, *Start with the computer*);
+  - the application starts the service with it and stops it when it closes;
+  - `UserSettings.background_service` remembers the choice.
+- **The scripts**: `scripts/start_service.ps1`, `scripts/stop_service.ps1`,
+  `scripts/install_autostart.ps1`, `scripts/run_service.sh`.
+- **The documentation**: `docs/BACKGROUND_SERVICE.md` (what it does, how to
+  start it with the computer, the files it writes, the settings, the
+  troubleshooting).
+- **`requirements.txt`** now also names the document readers
+  (`python-docx`, `python-pptx`, `pymupdf`) - the Phase 10 features need them.
+- **42 new tests** (`tests/unit/test_service_*.py`).
+
+### Verified
+- `pytest`: **575 passed, 2 skipped**; `ruff check .` and `black --check .`
+  are clean.
+- A live run: the service read a picture of the board, solved it, drew the
+  graph (`x² + y² = 9`), wrote the result into the outbox and stopped cleanly
+  on `SIGTERM`.
+
+### Left / blockers
+- **BLOCKER (human):** without a Gemini key the OCR of a real board needs the
+  fog server (`python -m aieva.core.service run` with
+  `AIEVA_SERVER_URL`); the mock engine was used for the verification.
+- **BLOCKER (human):** the capture of a real Android board still needs the
+  MediaProjection (the stub of Phase 11); the desktop screen and the folder
+  source work today.
+- The floating window was verified on the desktop; on a board it needs a
+  window manager that allows an always-on-top window.

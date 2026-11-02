@@ -133,6 +133,7 @@ def test_to_dict():
         "pen_width",
         "palm_rejection",
         "palm_threshold",
+        "background_service",
     }
 
 

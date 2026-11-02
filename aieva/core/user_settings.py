@@ -64,6 +64,8 @@ class UserSettings:
     pen_width: float = 4.0
     palm_rejection: bool = True
     palm_threshold: float = 60.0
+    #: Watch the board in the background while the application is open.
+    background_service: bool = True
 
     def __post_init__(self) -> None:
         self.quality = (self.quality or "low").strip().lower()
@@ -73,6 +75,7 @@ class UserSettings:
         self.palm_threshold = _clamp(self.palm_threshold, MIN_PALM_THRESHOLD, MAX_PALM_THRESHOLD)
         self.server_url = (self.server_url or "").strip().rstrip("/")
         self.offline_mode = bool(self.offline_mode)
+        self.background_service = bool(self.background_service)
 
     # ------------------------------------------------------------------ api
     @classmethod

@@ -1,7 +1,8 @@
-# Aieva (v1)
+# Aieva — Math Edition (v1)
 
 **Aieva** is a screen-aware AI educational visualisation assistant for interactive
-smart boards and desktop computers.
+smart boards and desktop computers. This repository is **v1: Mathematics** —
+the features 1.a – 1.f of the project plan.
 
 | | |
 |---|---|
@@ -14,8 +15,38 @@ smart boards and desktop computers.
 
 ---
 
+## The background service
+
+Aieva is an **application that works in the background of the smart board**:
+it looks at the board on its own, notices what was written there, reads the
+mathematics, solves it and draws the graph - the teacher does not press
+anything.
+
+```powershell
+.\scripts\start_service.ps1         # Windows - runs in the background
+./scripts/run_service.sh            # Linux / macOS
+python -m aieva.core.service run    # any platform
+```
+
+| Command | What it does |
+|---|---|
+| `python -m aieva.core.service run` | watch the board in the background |
+| `python -m aieva.core.service once` | one reading (for a quick check) |
+| `python -m aieva.core.service status` | what the service is doing right now |
+| `python -m aieva.core.service install-autostart` | start with the computer (no clicks in the morning) |
+| `python -m aieva.core.service uninstall-autostart` | stop starting with the computer |
+
+The window of the teacher (`python -m aieva.ui.app`) and the service are one
+system: the **Settings** tab starts, stops and installs it, and the service
+keeps working when the window is closed.
+
+The details are in [docs/BACKGROUND_SERVICE.md](docs/BACKGROUND_SERVICE.md).
+
+---
+
 ## Contents
 
+- [The background service](#the-background-service)
 - [Features](#features)
 - [Architecture](#architecture)
 - [Quick start](#quick-start)
@@ -39,6 +70,7 @@ smart boards and desktop computers.
 | 1.e | Solve from screen | Select a region of the board → OCR → SymPy → step by step |
 | 1.f | Word problems | Four template categories with a confirmation card and an animation |
 | — | Documents | The equations of a PDF, PPTX or DOCX, ready to plot or solve |
+| — | Background service | The board is watched on its own: capture → OCR → solve → graph, without a click |
 | — | Settings | Server URL, render quality, offline mode, pen thickness, palm rejection |
 
 ![The plot modal with live sliders](docs/screenshots/equation-sliders.png)
@@ -120,8 +152,21 @@ deterministic canned data — the whole application is usable that way.
 .\scripts\run_app.ps1         # the application
 ```
 
-**Run the background OCR service** (optional — it watches a folder and writes
-the recognised LaTeX into an outbox):
+**Run the background service** (the board application - it works on its own):
+
+```bash
+./scripts/run_service.sh          # or: python -m aieva.core.service run
+```
+
+On Windows:
+
+```powershell
+.\scripts\start_service.ps1     # in the background, no window
+.\scripts\stop_service.ps1      # stop it again
+```
+
+The older OCR worker (it watches a folder and writes the recognised LaTeX into
+an outbox) still works:
 
 ```bash
 ./scripts/run_ocr_worker.sh
@@ -197,6 +242,29 @@ aieva/
 ├── docs/                      # the plan, the API contract, the demo script
 ├── Dockerfile
 └── pyproject.toml             # ruff, black and pytest configuration
+```
+
+---
+
+## Publishing to GitHub
+
+```bash
+./scripts/publish.sh          # Linux / macOS
+.\scripts\publish.ps1        # Windows
+```
+
+The script creates the repository, checks what would be uploaded (the
+`.gitignore` rules and a secret scan) and makes the first commit. Then:
+
+```bash
+git remote add origin https://github.com/<you>/<repo>.git
+git push -u origin main
+```
+
+The same check runs on its own:
+
+```bash
+python scripts/check_release.py
 ```
 
 ---

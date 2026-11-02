@@ -8,6 +8,10 @@ scipy
 mpmath
 matplotlib
 pillow
+# The document readers of Phase 10 (Word / PowerPoint / PDF).
+python-docx
+python-pptx
+pymupdf
 opencv-python-headless
 requests
 python-dotenv

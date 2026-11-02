@@ -176,6 +176,72 @@ class SettingsScreen(Screen):
         row.add_widget(self.palm_label)
         root.add_widget(row)
 
+        # --- the background service -------------------------------------
+        root.add_widget(self._label("Background service - the board is watched on its own"))
+        row = BoxLayout(
+            orientation="horizontal",
+            size_hint_y=None,
+            height=dp(theme.BUTTON_HEIGHT_DP),
+            spacing=dp(theme.GAP_DP),
+        )
+        row.add_widget(self._label("Watch the board while the application is open"))
+        self.service_switch = Switch(active=self.settings.background_service)
+        row.add_widget(self.service_switch)
+        root.add_widget(row)
+
+        row = BoxLayout(
+            orientation="horizontal",
+            size_hint_y=None,
+            height=dp(theme.BUTTON_HEIGHT_DP),
+            spacing=dp(theme.GAP_DP),
+        )
+        self.service_status = self._label("The service is stopped.")
+        row.add_widget(self.service_status)
+        root.add_widget(row)
+
+        row = BoxLayout(
+            orientation="horizontal",
+            size_hint_y=None,
+            height=dp(theme.BUTTON_HEIGHT_DP),
+            spacing=dp(theme.GAP_DP),
+        )
+        start_button = Button(
+            text="Start",
+            size_hint_x=None,
+            width=dp(130),
+            background_normal="",
+            background_color=theme.PRIMARY,
+            color=theme.TEXT,
+            font_size=theme.sp_size(16),
+        )
+        start_button.bind(on_release=lambda _b: self._service_action("start"))
+        row.add_widget(start_button)
+
+        stop_button = Button(
+            text="Stop",
+            size_hint_x=None,
+            width=dp(130),
+            background_normal="",
+            background_color=theme.SURFACE_ALT,
+            color=theme.TEXT,
+            font_size=theme.sp_size(16),
+        )
+        stop_button.bind(on_release=lambda _b: self._service_action("stop"))
+        row.add_widget(stop_button)
+
+        auto_button = Button(
+            text="Start with the computer",
+            size_hint_x=None,
+            width=dp(260),
+            background_normal="",
+            background_color=theme.SURFACE_ALT,
+            color=theme.TEXT,
+            font_size=theme.sp_size(16),
+        )
+        auto_button.bind(on_release=lambda _b: self._service_action("install"))
+        row.add_widget(auto_button)
+        root.add_widget(row)
+
         # --- the actions -----------------------------------------------
         actions = BoxLayout(
             orientation="horizontal",
@@ -248,6 +314,19 @@ class SettingsScreen(Screen):
         label.bind(size=lambda w, _v: setattr(w, "text_size", w.size))
         return label
 
+    # ---------------------------------------------------- the background service
+    def _service_action(self, action: str) -> None:
+        """Tell the application what the teacher asked for."""
+        if self.on_service_action is not None:
+            self.on_service_action(action)
+
+    def set_service_status(self, text: str) -> None:
+        """Show what the background service is doing."""
+        self.service_status.text = text
+
+    #: Called with "start", "stop" or "install" when a button is pressed.
+    on_service_action: Any = None
+
     # ------------------------------------------------------------- the values
     def _on_pen(self, _widget: Any, value: float) -> None:
         self.pen_label.text = f"{value:g} px"
@@ -264,6 +343,7 @@ class SettingsScreen(Screen):
             pen_width=self.pen_slider.value,
             palm_rejection=self.palm_switch.active,
             palm_threshold=self.palm_slider.value,
+            background_service=self.service_switch.active,
         )
 
     def save(self) -> None:
@@ -290,6 +370,7 @@ class SettingsScreen(Screen):
         self.pen_slider.value = self.settings.pen_width
         self.palm_switch.active = True
         self.palm_slider.value = self.settings.palm_threshold
+        self.service_switch.active = True
         self.status_label.text = "The defaults are shown - press 'Save' to keep them."
 
     #: Called with the new settings after they were saved.
