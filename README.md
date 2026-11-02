@@ -1,9 +1,7 @@
-# Aieva — Math Edition (v1)
+# Aieva — (v1)
 
 **Aieva** is a screen-aware AI educational visualisation assistant for interactive
-smart boards and desktop computers. This repository is **v1: Mathematics** —
-the features 1.a – 1.f of the project plan.
-
+smart boards and desktop computers. 
 | | |
 |---|---|
 | **Core** | SymPy (symbolic maths), NumPy/SciPy (numerics), Matplotlib (rendering) |
