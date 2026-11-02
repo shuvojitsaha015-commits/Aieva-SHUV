@@ -14,8 +14,8 @@ aieva-server = "server.main:run"
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools]
-packages = ["aieva", "aieva.core", "aieva.ui"]
+[tool.setuptools.packages.find]
+include = ["aieva*", "server*"]
 
 [tool.ruff]
 line-length = 100
