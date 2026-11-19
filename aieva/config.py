@@ -66,7 +66,7 @@ class Settings:
     # --- connectivity --------------------------------------------------
     server_url: str = "http://127.0.0.1:8000"
     server_api_key: str = ""
-    server_timeout: float = 30.0
+    server_timeout: float = 120.0
     mock_llm: bool = False
 
     # --- behaviour -----------------------------------------------------
@@ -134,7 +134,7 @@ def settings_from_env(env: dict[str, str] | None = None) -> Settings:
         wolfram_app_id=src.get("WOLFRAM_APP_ID", "").strip(),
         server_url=(src.get("AIEVA_SERVER_URL", "").strip() or "http://127.0.0.1:8000"),
         server_api_key=src.get("AIEVA_SERVER_KEY", "").strip(),
-        server_timeout=float(src.get("AIEVA_SERVER_TIMEOUT", "30") or 30),
+        server_timeout=float(src.get("AIEVA_SERVER_TIMEOUT", "120") or 120),
         mock_llm=_as_bool(src.get("AIEVA_MOCK_LLM"), False),
         offline_mode=_as_bool(src.get("AIEVA_OFFLINE_MODE"), False),
         cache_dir=Path(src.get("AIEVA_CACHE_DIR", ".aieva_cache")),

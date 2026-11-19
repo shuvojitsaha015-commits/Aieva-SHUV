@@ -58,9 +58,52 @@ def test_the_python_helper_finds_the_venv() -> None:
 
 def test_the_setup_creates_the_venv() -> None:
     text = (SCRIPTS / "setup.ps1").read_text(encoding="utf-8")
-    assert "python -m venv .venv" in text
+    assert "-m venv .venv" in text
     assert "requirements.txt" in text
     assert ".env.example" in text
+    # a computer without Python has to get a clear message, not an error
+    assert "python.org/downloads" in text
+
+
+#: Every PowerShell file of the project (not only the known ones).
+ALL_SCRIPTS = sorted(SCRIPTS.glob("*.ps1"))
+
+
+@pytest.mark.parametrize("path", ALL_SCRIPTS, ids=lambda p: p.name)
+def test_the_param_block_is_the_first_statement(path: Path) -> None:
+    """PowerShell only accepts ``param`` as the first statement of a block.
+
+    A string (or any other statement) in front of it turns ``param`` into a
+    command, and the script dies with
+
+        The term 'param' is not recognized as the name of a cmdlet.
+
+    The CI cannot run PowerShell, so the rule is checked here.
+    """
+    lines = path.read_text(encoding="utf-8").splitlines()
+    for number, line in enumerate(lines, start=1):
+        stripped = line.strip()
+        if not (stripped.startswith("param(") or stripped.startswith("param (")):
+            continue
+        # look back: only comments and blank lines may stand in front of it
+        for before in reversed(lines[: number - 1]):
+            earlier = before.strip()
+            if not earlier or earlier.startswith("#"):
+                continue
+            assert earlier.endswith("{"), (
+                f"{path.name} line {number}: the param block has a statement in front of it "
+                f"({earlier!r}) - PowerShell would treat 'param' as a command"
+            )
+            break
+
+
+@pytest.mark.parametrize("path", ALL_SCRIPTS, ids=lambda p: p.name)
+def test_no_python_docstring_in_the_scripts(path: Path) -> None:
+    """A ``\"\"\"text\"\"\"`` line is a statement in PowerShell - not a comment."""
+    text = path.read_text(encoding="utf-8")
+    assert (
+        '"""' not in text
+    ), f"{path.name} uses a Python docstring - PowerShell reads it as a command"
 
 
 def test_the_setup_asks_for_the_gemini_key() -> None:

@@ -23,7 +23,6 @@ import matplotlib
 
 matplotlib.use("Agg", force=False)
 
-import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 import sympy  # noqa: E402
 from matplotlib.patches import Polygon, Rectangle  # noqa: E402
@@ -31,6 +30,7 @@ from matplotlib.patches import Polygon, Rectangle  # noqa: E402
 from aieva.core import numeric  # noqa: E402
 from aieva.core.errors import SolveError  # noqa: E402
 from aieva.core.models import ParamSpec, VisualizationResult  # noqa: E402
+from aieva.core.plotting import new_subplots  # noqa: E402
 
 RIEMANN_METHODS: tuple[str, ...] = ("left", "right", "midpoint", "trapezoid")
 
@@ -193,7 +193,7 @@ def integral_view(
         y_values = np.asarray(func(x_values), dtype=float)
     y_values = np.where(np.abs(y_values) > 1e9, np.nan, y_values)
 
-    fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
+    fig, ax = new_subplots(figsize=figsize, dpi=dpi)
     ax.plot(x_values, y_values, color=CURVE_COLOR, linewidth=2.0, label="f(x)")
     ax.fill_between(
         x_values,
@@ -344,7 +344,7 @@ def riemann_view(
         y_values = np.asarray(func(x_values), dtype=float)
     y_values = np.where(np.abs(y_values) > 1e9, np.nan, y_values)
 
-    fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
+    fig, ax = new_subplots(figsize=figsize, dpi=dpi)
     ax.plot(x_values, y_values, color=CURVE_COLOR, linewidth=2.0, label="f(x)")
 
     with np.errstate(all="ignore"):
@@ -451,7 +451,7 @@ class TangentSession:
 
     # ------------------------------------------------------------------ UI
     def _build(self, figsize: tuple[float, float], dpi: int) -> None:
-        self.figure, self.ax = plt.subplots(figsize=figsize, dpi=dpi)
+        self.figure, self.ax = new_subplots(figsize=figsize, dpi=dpi)
         x_min, x_max = _default_window(self.expression, self.variable, None, None)
         self.x_values = np.linspace(x_min, x_max, 800)
         with np.errstate(all="ignore"):
@@ -657,7 +657,7 @@ def area_between(
     y_f = np.where(np.abs(y_f) > 1e9, np.nan, y_f)
     y_g = np.where(np.abs(y_g) > 1e9, np.nan, y_g)
 
-    fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
+    fig, ax = new_subplots(figsize=figsize, dpi=dpi)
     ax.plot(x_values, y_f, color=CURVE_COLOR, linewidth=2.0, label="f(x)")
     ax.plot(x_values, y_g, color="#ff7f0e", linewidth=2.0, label="g(x)")
     ax.fill_between(x_values, y_f, y_g, color=RIEMANN_COLOR, alpha=0.35)
@@ -756,7 +756,7 @@ def shape_area_view(
     scaled = [(x * units_per_pixel, y * units_per_pixel) for x, y in points]
     area = polygon_area(scaled)
 
-    fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
+    fig, ax = new_subplots(figsize=figsize, dpi=dpi)
     xs = [point[0] for point in scaled]
     ys = [point[1] for point in scaled]
     ax.fill(xs, ys, color=RIEMANN_COLOR, alpha=0.35, edgecolor="#5b3f8c")

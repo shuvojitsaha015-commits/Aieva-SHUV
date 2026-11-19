@@ -15,11 +15,11 @@ import matplotlib
 
 matplotlib.use("Agg", force=False)
 
-import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.patches import Circle, Polygon, Rectangle  # noqa: E402
 
 from aieva.core.errors import SolveError  # noqa: E402
 from aieva.core.models import Step, VisualizationResult  # noqa: E402
+from aieva.core.plotting import new_subplots  # noqa: E402
 
 #: The shapes that the template understands.
 SHAPES = ("rectangle", "circle", "triangle", "right_triangle")
@@ -114,7 +114,7 @@ def render(problem: Any, solution: Any) -> VisualizationResult:
     area = solution.values["area"]
     perimeter = solution.values["perimeter"]
 
-    fig, ax = plt.subplots(figsize=(6.5, 5.5), dpi=100)
+    fig, ax = new_subplots(figsize=(6.5, 5.5), dpi=100)
     ax.set_aspect("equal", adjustable="box")
 
     if shape == "circle":

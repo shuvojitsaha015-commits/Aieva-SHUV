@@ -28,6 +28,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from aieva.core.plotting import close_figure
 from aieva.core.service.config import ServiceConfig, resolve
 from aieva.core.service.scan import clear_request, read_region, read_request
 from aieva.core.service.sources import NothingToCapture, build_source
@@ -429,12 +430,7 @@ class BackgroundService:
     @staticmethod
     def _close_figure(figure: Any) -> None:
         """Give the memory of the figure back (only this one)."""
-        try:
-            import matplotlib.pyplot as plt
-
-            plt.close(figure)
-        except Exception:  # noqa: BLE001 - matplotlib may not be loaded
-            pass
+        close_figure(figure)
 
     def _publish(self, payload: dict[str, Any]) -> Path:
         """Write the result (outbox, history and the file of the window)."""

@@ -18,6 +18,7 @@ from kivy.uix.label import Label
 from kivy.uix.scrollview import ScrollView
 
 from aieva.core.models import Step
+from aieva.core.plotting import close_figure, new_figure
 from aieva.ui import theme
 
 LOGGER = logging.getLogger(__name__)
@@ -39,9 +40,8 @@ def render_math_texture(
         import matplotlib
 
         matplotlib.use("Agg", force=False)
-        import matplotlib.pyplot as plt
 
-        figure = plt.figure(figsize=(width / 100.0, height / 100.0), dpi=100)
+        figure = new_figure(figsize=(width / 100.0, height / 100.0), dpi=100)
         figure.patch.set_alpha(0.0)
         figure.text(
             0.5,
@@ -56,7 +56,7 @@ def render_math_texture(
         canvas = figure.canvas
         buffer = canvas.buffer_rgba()
         texture_width, texture_height = canvas.get_width_height()
-        plt.close(figure)
+        close_figure(figure)
         texture = Texture.create(size=(texture_width, texture_height))
         texture.blit_buffer(bytes(buffer), colorfmt="rgba", bufferfmt="ubyte")
         texture.flip_vertical()

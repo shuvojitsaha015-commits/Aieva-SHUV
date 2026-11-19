@@ -24,7 +24,7 @@ small control on the left edge of the screen is all the teacher needs.
 | **pystray** | latest | The icon of Aieva in the **system tray** of Windows. It is imported lazily, so the rest of Aieva still works on a machine without it. |
 | **Pillow** | latest | The pictures of the board: the capture of the screen, the pre-processing, the icon of the tray. |
 | **numpy** | latest | The numbers of the graphs (the grids, the surfaces, the integrals). |
-| **opencv-python-headless** | latest | The pre-processing of the picture before it is read (the deskew, the noise, the threshold). |
+| **pillow + numpy** | latest | The pre-processing of the picture before it is read (the deskew, the noise, the threshold) - **without OpenCV**, so the app also runs on a weak board computer. |
 | **requests / httpx** | latest | The talk with the fog server. |
 
 ### The maths (what the answer is)
@@ -311,7 +311,7 @@ The suite covers the OCR pipeline, the background service, the maths, the
 graphs, the charts, the tray, the control on the edge, the intent of Gemini,
 the pool of the Gemini keys and the scripts of Windows.
 
-The last full run: **748 passed, 3 skipped** (the three skipped ones need a
+The last full run: **783 passed, 3 skipped** (the three skipped ones need a
 real Gemini key).
 
 > The tests need the packages of `requirements.txt` **and**

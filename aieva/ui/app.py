@@ -40,6 +40,7 @@ from kivy.uix.scrollview import ScrollView  # noqa: E402
 from aieva.core.errors import AievaError, ParseError  # noqa: E402
 from aieva.core.models import ParsedInput  # noqa: E402
 from aieva.core.ocr.worker import OcrWorker  # noqa: E402
+from aieva.core.plotting import FigureOwner  # noqa: E402
 from aieva.core.plugin_base import SubjectPlugin  # noqa: E402
 from aieva.core.plugin_registry import get_plugin, subject_metas  # noqa: E402
 from aieva.core.service.config import ServiceConfig  # noqa: E402
@@ -63,6 +64,11 @@ from aieva.ui.widgets.toast import show_toast  # noqa: E402
 from aieva.ui.workers import run_in_background  # noqa: E402
 
 LOGGER = logging.getLogger(__name__)
+
+# Matplotlib and Kivy write a lot of debug lines (every font is checked).
+# They would drown the window of the teacher, so they stay quiet.
+for _noisy in ("matplotlib", "matplotlib.font_manager", "PIL"):
+    logging.getLogger(_noisy).setLevel(logging.WARNING)
 
 KV_FILE = Path(__file__).with_name("main.kv")
 
@@ -162,6 +168,10 @@ class AievaApp(App):
         self.whiteboard_screen.on_request_solve = self._on_request_solve
 
         self.plot_modal: PlotModal | None = None
+        # The owner of the figure that is on the screen - it gives the
+        # memory back when the plot is replaced or the app closes.
+        self._plot_owner: FigureOwner | None = None
+        self._plot_session: Any = None
         self.lens_overlay: LensOverlay | None = None
         self.lens_result: LensResult | None = None
         self._canvas_publish: Any = None
@@ -240,6 +250,8 @@ class AievaApp(App):
         if worker is not None:
             worker.stop()
         self.stop_background_service()
+        # The figure of the open plot goes back to the memory.
+        self._release_plot()
 
     # ------------------------------------------------------ the background service
     def start_background_service(self) -> None:
@@ -348,12 +360,21 @@ class AievaApp(App):
             figure = getattr(session, "figure", None)
             parameters = getattr(session, "parameters", []) or []
             latex = getattr(session, "info", None)
+
+            # The old plot goes away first - its own figure only. The
+            # new figure is a different object, so it is never touched.
+            self._release_plot()
+
+            owner = FigureOwner(figure)
+            self._plot_owner = owner
+            self._plot_session = session
             self.plot_modal = PlotModal(
                 figure=figure,
                 session=session if hasattr(session, "set_param") else None,
                 parameters=parameters,
                 latex=getattr(latex, "latex", "") or parsed_input.latex or "",
                 title=f"Aieva - {self.current_subject}",
+                owner=owner,
             )
             self.plot_modal.open()
 
@@ -361,6 +382,33 @@ class AievaApp(App):
             self._report_error(exc)
 
         run_in_background(work, on_done, on_error, name="aieva-parse")
+
+    def _release_plot(self) -> None:
+        """Give the memory of the plot that is on the screen back.
+
+        Only the figure of **this** plot is released. A plot that is
+        shown somewhere else at the same time keeps working - the old
+        ``plt.close("all")`` would have destroyed it.
+        """
+        modal, self.plot_modal = self.plot_modal, None
+        owner, self._plot_owner = self._plot_owner, None
+        session, self._plot_session = self._plot_session, None
+
+        if modal is not None:
+            try:
+                modal.dismiss()
+            except Exception as exc:  # noqa: BLE001 - the clean-up is optional
+                LOGGER.info("The plot could not be closed: %s", exc)
+            modal.dispose()
+        if owner is not None:
+            owner.release()
+        if session is not None:
+            close = getattr(session, "close", None)
+            if callable(close):
+                try:
+                    close()
+                except Exception as exc:  # noqa: BLE001 - the clean-up is optional
+                    LOGGER.info("The plot session could not be closed: %s", exc)
 
     def _on_settings_saved(self, settings: Any) -> None:
         """The user changed the settings - the whiteboard follows."""
@@ -409,12 +457,16 @@ class AievaApp(App):
 
         run_in_background(grab, on_result=on_capture, on_error=on_error, name="aieva-lens")
 
-    def _on_canvas_changed(self, image: Any) -> None:
+    def _on_canvas_changed(self, image: Any = None) -> None:
         """The writing on the canvas changed - publish it for the service.
 
         The picture goes into the folder the background service watches, so
         the board is read **without any screen capture and without any
         permission** - the way it works on every computer.
+
+        The whiteboard calls the callback without a picture (it only says
+        "something changed"), so the picture is made here - when the
+        teacher stops writing, not on every single touch.
         """
         if self._canvas_publish is not None:
             self._canvas_publish.cancel()
@@ -422,9 +474,23 @@ class AievaApp(App):
             lambda _dt: self._publish_canvas(image), self.CANVAS_PUBLISH_SECONDS
         )
 
-    def _publish_canvas(self, image: Any) -> None:
+    def _export_canvas(self) -> Any:
+        """The picture of the canvas (PIL) - or None when it is not possible."""
+        try:
+            board = self.whiteboard_screen.whiteboard
+            return board.export_to_image()
+        except Exception as exc:  # noqa: BLE001 - the canvas is optional
+            LOGGER.info("The canvas could not be exported: %s", exc)
+            return None
+
+    def _publish_canvas(self, image: Any = None) -> None:
         """Put the picture of the canvas into the folder of the service."""
         from aieva.core.service.canvas import publish_canvas
+
+        if image is None:
+            image = self._export_canvas()
+        if image is None:
+            return
 
         config = ServiceConfig.from_env()
         target = publish_canvas(config.folder, image)

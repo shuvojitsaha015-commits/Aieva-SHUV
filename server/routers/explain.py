@@ -11,7 +11,7 @@ import logging
 from fastapi import APIRouter, HTTPException
 
 from aieva.core.errors import AievaError
-from aieva.core.llm.prompts import EXPLAIN_PROMPT
+from aieva.core.llm.prompts import EXPLAIN_PROMPT, render_prompt
 from server.schemas import ExplainRequest, ExplainResponse, Step
 from server.services.gemini import MOCK_EXPLAIN, GeminiService
 
@@ -31,7 +31,8 @@ async def explain(request: ExplainRequest) -> ExplainResponse:
             note=MOCK_EXPLAIN["note"],
         )
 
-    prompt = EXPLAIN_PROMPT.format(
+    prompt = render_prompt(
+        EXPLAIN_PROMPT,
         problem_latex=request.problem_latex or "(not given)",
         sympy_answer=request.sympy_answer or "(not given)",
         hints=request.hints or "(none)",

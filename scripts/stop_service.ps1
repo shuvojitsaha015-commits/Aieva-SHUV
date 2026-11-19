@@ -6,8 +6,16 @@
 # floating window).
 $ErrorActionPreference = "Stop"
 
-$processes = Get-CimInstance Win32_Process -Filter "Name like 'python%'" |
-    Where-Object { $_.CommandLine -like "*aieva.core.service*" }
+# The command line of the process is needed to find the Aieva processes -
+# Get-CimInstance knows it (Windows), Get-Process does not (Linux).
+$processes = $null
+if (Get-Command Get-CimInstance -ErrorAction SilentlyContinue) {
+    $processes = Get-CimInstance Win32_Process -Filter "Name like 'python%'" |
+        Where-Object { $_.CommandLine -like "*aieva.core.service*" }
+} else {
+    Write-Host "[aieva] this script needs Windows (Get-CimInstance)."
+    exit 0
+}
 
 if (-not $processes) {
     Write-Host "[aieva] the background service is not running."

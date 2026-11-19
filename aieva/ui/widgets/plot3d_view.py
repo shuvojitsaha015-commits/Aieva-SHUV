@@ -14,9 +14,27 @@ from kivy.clock import Clock
 from kivy.metrics import dp
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
-from kivy_garden.matplotlib.backend_kivyagg import FigureCanvasKivyAgg
 
 from aieva.ui import theme
+
+# The Matplotlib backend of Kivy is optional: on a computer without
+# setuptools (Python 3.12 and newer do not bring it any more) the import of
+# "kivy_garden.matplotlib" fails with "No module named 'distutils'". The
+# application must still start then - the 3D plot falls back to a picture.
+try:
+    from kivy_garden.matplotlib.backend_kivyagg import FigureCanvasKivyAgg
+except Exception as _exc:  # noqa: BLE001 - the backend is optional
+    LOGGER_MESSAGE = f"The Kivy Matplotlib backend is not available: {_exc}"
+
+    class FigureCanvasKivyAgg:  # type: ignore[no-redef]
+        """A stand-in for the missing backend."""
+
+        def __init__(self, figure: Any = None, **kwargs: Any) -> None:
+            raise RuntimeError(
+                "The Kivy Matplotlib backend is not available - install setuptools "
+                "and kivy-garden.matplotlib (pip install setuptools kivy-garden.matplotlib)"
+            )
+
 
 #: How often the canvas is redrawn while the user drags (seconds).
 REDRAW_INTERVAL = 1.0 / 30.0

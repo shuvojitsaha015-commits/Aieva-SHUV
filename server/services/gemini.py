@@ -19,7 +19,7 @@ from typing import Any
 
 from aieva.config import get_settings
 from aieva.core.errors import CloudError
-from aieva.core.llm.prompts import REPAIR_PROMPT
+from aieva.core.llm.prompts import REPAIR_PROMPT, render_prompt
 
 LOGGER = logging.getLogger(__name__)
 
@@ -28,6 +28,43 @@ MAX_RETRIES = 2
 
 #: The base of the exponential backoff (seconds).
 BACKOFF_BASE = 0.5
+
+#: The longest wait between two tries (seconds).
+BACKOFF_MAX = 8.0
+
+#: The words in an error that mean "try again later" - the server of
+#: Google is busy, the network hiccuped, the quota of the minute is over.
+TRANSIENT_MARKERS = (
+    "503",
+    "unavailable",
+    "overloaded",
+    "deadline exceeded",
+    "timeout",
+    "timed out",
+    "429",
+    "rate limit",
+    "resource_exhausted",
+    "connection reset",
+    "connection aborted",
+    "temporarily unavailable",
+    "internal error",
+    "502",
+    "504",
+)
+
+#: The words in an error that mean "this key will not work" - no waiting
+#: helps, the key is simply refused.
+PERMANENT_MARKERS = (
+    "400",
+    "401",
+    "403",
+    "invalid_argument",
+    "invalid api key",
+    "api key not valid",
+    "api_key_invalid",
+    "permission_denied",
+    "unauthenticated",
+)
 
 #: The canned answers of the mock mode.
 MOCK_OCR = {
@@ -76,6 +113,35 @@ MOCK_WORDPROBLEM = {
     "parameters_for_sliders": ["v0", "theta"],
     "assumptions": ["g = 9.8 m/s^2"],
 }
+
+
+def is_transient(exc: BaseException) -> bool:
+    """``True`` when the same call could work a moment later.
+
+    Google answers with "503 UNAVAILABLE" or a timeout when the service
+    is busy - that is not a mistake of the program, so the call is simply
+    tried again. A refused key ("400", "401") will never work, so it is
+    not tried again.
+
+    An error that says nothing at all (a network hiccup, an exception
+    of the SDK) is **transient as well**: the old behaviour was to try
+    again, and an unknown error must not make the answer worse.
+    """
+    text = str(exc).lower()
+    return not any(marker in text for marker in PERMANENT_MARKERS)
+
+
+def describe_failure(exc: BaseException) -> str:
+    """A short, clear description of the failure for the teacher."""
+    if not is_transient(exc):
+        return f"Gemini refused the request - the API key has to be checked: {exc}"
+    text = str(exc).lower()
+    if any(marker in text for marker in TRANSIENT_MARKERS):
+        return (
+            "Gemini is temporarily unavailable (the service is busy or the "
+            f"network hiccuped): {exc}"
+        )
+    return f"Gemini could not be reached: {exc}"
 
 
 def extract_json(text: str) -> Any:
@@ -163,7 +229,9 @@ class GeminiService:
         except CloudError:
             # one repair attempt with the broken answer
             LOGGER.warning("The model did not answer with JSON - asking for a repair")
-            repaired = self._call_with_retries(REPAIR_PROMPT.format(broken=answer), None, mime_type)
+            repaired = self._call_with_retries(
+                render_prompt(REPAIR_PROMPT, broken=answer), None, mime_type
+            )
             return extract_json(repaired)
 
     # ------------------------------------------------------------ internals
@@ -186,25 +254,41 @@ class GeminiService:
         exponential backoff. With several keys a key that fails (its quota
         is gone, it is refused) is **skipped at once** - the next key
         answers without any waiting.
+
+        A key that is *refused* (a wrong key) is taken out of the list -
+        waiting would not help it. A **temporary** failure ("503
+        UNAVAILABLE", a timeout) is tried again with a backoff, and the
+        last failure is reported in a way the teacher understands.
         """
         keys = list(self.api_keys)
         if not keys:
             raise CloudError("No Gemini API key is configured")
         last_error: Exception | None = None
+        refused: set[str] = set()
         for round_index in range(MAX_RETRIES + 1):
             for index, key in enumerate(keys):
+                if key in refused:
+                    continue
                 try:
                     return self._call_once(prompt, image_bytes, mime_type, key)
                 except Exception as exc:  # noqa: BLE001 - the SDK raises many types
                     last_error = exc
-                    LOGGER.warning(
-                        "Gemini call failed (key %d of %d): %s", index + 1, len(keys), exc
-                    )
+                    if is_transient(exc):
+                        LOGGER.warning(
+                            "Gemini is busy (key %d of %d): %s", index + 1, len(keys), exc
+                        )
+                    else:
+                        LOGGER.warning(
+                            "The key %d of %d was refused: %s", index + 1, len(keys), exc
+                        )
+                        refused.add(key)
             if round_index < MAX_RETRIES:
-                delay = BACKOFF_BASE * (2**round_index)
+                delay = min(BACKOFF_MAX, BACKOFF_BASE * (2**round_index))
                 LOGGER.warning("Every key failed - waiting %.1fs", delay)
                 time.sleep(delay)
-        raise CloudError(f"Gemini could not be reached: {last_error}")
+        raise CloudError(
+            describe_failure(last_error) if last_error else "Gemini could not be reached"
+        )
 
     def _call_once(
         self, prompt: str, image_bytes: bytes | None, mime_type: str, key: str = ""
@@ -231,10 +315,15 @@ class GeminiService:
 
 __all__ = [
     "BACKOFF_BASE",
+    "BACKOFF_MAX",
     "MAX_RETRIES",
+    "PERMANENT_MARKERS",
+    "TRANSIENT_MARKERS",
     "MOCK_EXPLAIN",
     "MOCK_OCR",
     "MOCK_WORDPROBLEM",
     "GeminiService",
+    "describe_failure",
     "extract_json",
+    "is_transient",
 ]

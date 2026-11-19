@@ -10,7 +10,7 @@ import logging
 from fastapi import APIRouter, HTTPException
 
 from aieva.core.errors import AievaError
-from aieva.core.llm.prompts import WORDPROBLEM_PROMPT
+from aieva.core.llm.prompts import WORDPROBLEM_PROMPT, render_prompt
 from server.schemas import (
     ProblemVariable,
     WordProblemRequest,
@@ -43,7 +43,7 @@ async def wordproblem(request: WordProblemRequest) -> WordProblemResponse:
         LOGGER.info("The mock word problem answered (no key configured)")
         return WordProblemResponse(**MOCK_WORDPROBLEM)
 
-    prompt = WORDPROBLEM_PROMPT.format(text=request.text)
+    prompt = render_prompt(WORDPROBLEM_PROMPT, text=request.text)
     from starlette.concurrency import run_in_threadpool
 
     try:

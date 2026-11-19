@@ -207,7 +207,7 @@ shuvojit.md            the full guide (libraries, installation, workflow, limits
 ## Testing
 
 ```bash
-python -m pytest tests -q      # 748 passed, 3 skipped
+python -m pytest tests -q      # 783 passed, 3 skipped
 python -m ruff check .         # linter — no warning allowed
 python -m black --check .      # formatter
 python -m aieva.core.doctor    # is this PC ready for the board?

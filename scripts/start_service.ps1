@@ -16,30 +16,30 @@ param(
 
 $ErrorActionPreference = "Stop"
 Set-Location (Join-Path $PSScriptRoot "..")
+. (Join-Path $PSScriptRoot "_python.ps1")
 
-function Get-AievaPython {
-    $candidates = @(
-        (Join-Path $PSScriptRoot "..\.venv\Scripts\pythonw.exe"),
-        (Join-Path $PSScriptRoot "..\.venv\Scripts\python.exe")
-    )
-    foreach ($candidate in $candidates) {
-        if (Test-Path $candidate) { return (Resolve-Path $candidate).Path }
-    }
-    $command = Get-Command pythonw.exe -ErrorAction SilentlyContinue
-    if ($command) { return $command.Source }
-    $command = Get-Command python.exe -ErrorAction SilentlyContinue
-    if ($command) { return $command.Source }
-    Write-Error "Python was not found - install it or create the virtual environment."
+# The background service runs without a console window (pythonw.exe).
+$python = Get-AievaPythonw
+if (-not $python) {
+    Write-Host "[aieva] Python was not found - install it or run .\scripts\setup.ps1"
+    exit 1
 }
 
-$python = Get-AievaPython
 $arguments = @("-m", "aieva.core.service", "run", "--interval", $Interval)
 if ($Mock) { $arguments += "--mock" }
 if ($Overlay) { $arguments += "--overlay" }
 
 if ($Wait) {
-    & $python @arguments
-    exit $LASTEXITCODE
+    # The service stays in the foreground - the log of the board is shown.
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        & $python @arguments 2>&1 | Write-AievaOutput
+        $code = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previous
+    }
+    exit $code
 }
 
 Start-Process -FilePath $python -ArgumentList $arguments -WorkingDirectory (Get-Location).Path

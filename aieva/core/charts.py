@@ -29,6 +29,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
+from aieva.core.plotting import new_subplots
+
 LOGGER = logging.getLogger(__name__)
 
 #: The kinds of chart that can be drawn.
@@ -118,9 +120,7 @@ def bar_chart(
     dpi: int = 100,
 ) -> Any:
     """A bar chart - a comparison of the values."""
-    import matplotlib.pyplot as plt
-
-    fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
+    fig, ax = new_subplots(figsize=figsize, dpi=dpi)
     positions = list(range(len(data.values)))
     bars = ax.bar(
         positions,
@@ -153,9 +153,7 @@ def line_chart(
     dpi: int = 100,
 ) -> Any:
     """A line chart - the development of the values."""
-    import matplotlib.pyplot as plt
-
-    fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
+    fig, ax = new_subplots(figsize=figsize, dpi=dpi)
     positions = list(range(len(data.values)))
     ax.plot(
         positions,
@@ -180,13 +178,11 @@ def pie_chart(
     dpi: int = 100,
 ) -> Any:
     """A pie chart - the share of every value."""
-    import matplotlib.pyplot as plt
-
     total = sum(abs(value) for value in data.values)
     if total <= 0:
         total = 1.0
     shares = [abs(value) / total for value in data.values]
-    fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
+    fig, ax = new_subplots(figsize=figsize, dpi=dpi)
     wedges, _texts, autotexts = ax.pie(
         shares,
         labels=data.labels,

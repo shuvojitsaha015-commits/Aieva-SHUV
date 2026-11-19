@@ -15,13 +15,13 @@ import matplotlib
 
 matplotlib.use("Agg", force=False)
 
-import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 import sympy  # noqa: E402
 from matplotlib.patches import Arc, Polygon  # noqa: E402
 
 from aieva.core.errors import ParseError, SolveError  # noqa: E402
 from aieva.core.models import ParamSpec, VisualizationResult  # noqa: E402
+from aieva.core.plotting import new_figure, new_subplots  # noqa: E402
 
 #: Number of grid lines per direction in the matrix transformation view.
 GRID_LINES = 21
@@ -123,7 +123,7 @@ def vector_view(
     second = vectors[1].array
     dimension = first.size
 
-    fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
+    fig, ax = new_subplots(figsize=figsize, dpi=dpi)
     ax.axhline(0, color="0.4", linewidth=0.9)
     ax.axvline(0, color="0.4", linewidth=0.9)
     ax.grid(True, alpha=0.3)
@@ -303,7 +303,7 @@ def matrix_view(
     transform = transform_matrix(matrix, rotation, shear, scale_x, scale_y, reflect)
     determinant = float(np.linalg.det(transform))
 
-    fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
+    fig, ax = new_subplots(figsize=figsize, dpi=dpi)
     ax.axhline(0, color="0.4", linewidth=0.9)
     ax.axvline(0, color="0.4", linewidth=0.9)
     ax.grid(True, alpha=0.2)
@@ -404,7 +404,7 @@ def eigen_view(
     values, vectors = eigen_values(transform)
     exact = exact_eigen_values(transform)
 
-    fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
+    fig, ax = new_subplots(figsize=figsize, dpi=dpi)
     ax.axhline(0, color="0.4", linewidth=0.9)
     ax.axvline(0, color="0.4", linewidth=0.9)
     ax.grid(True, alpha=0.3)
@@ -567,7 +567,7 @@ def system_view(
     equations = list(equations)
     solution = solve_system(equations)
 
-    fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
+    fig, ax = new_subplots(figsize=figsize, dpi=dpi)
     ax.axhline(0, color="0.4", linewidth=0.9)
     ax.axvline(0, color="0.4", linewidth=0.9)
     ax.grid(True, alpha=0.3)
@@ -674,7 +674,7 @@ def cube_view(
     ]
     transformed = corners @ transform.T
 
-    fig = plt.figure(figsize=figsize, dpi=dpi)
+    fig = new_figure(figsize=figsize, dpi=dpi)
     ax = fig.add_subplot(111, projection="3d")
     for face in faces:
         polygon = Poly3DCollection(

@@ -56,7 +56,7 @@ no other tool has to be opened.
 
 The project is a real working application, not a prototype: the maths is
 checked by SymPy, the Windows parts are scripted, and the whole thing is
-covered by an automated test suite (\textbf{748 passed, 3 skipped}).
+covered by an automated test suite (\textbf{783 passed, 3 skipped}).
 
 % ------------------------------------------------------------ architecture
 \section*{2. Architecture and workflow}
@@ -179,7 +179,7 @@ makes the project testable: 90\,\% of the code never touches a window.
 \toprule
 \textbf{Command} & \textbf{What it does} \\
 \midrule
-\texttt{python -m pytest tests -q} & the whole suite: 748 passed, 3 skipped \\
+\texttt{python -m pytest tests -q} & the whole suite: 783 passed, 3 skipped \\
 \texttt{python -m ruff check .} & the linter (no error allowed) \\
 \texttt{python -m black --check .} & the formatter \\
 \texttt{python -m aieva.core.doctor} & is this PC ready for the board? \\

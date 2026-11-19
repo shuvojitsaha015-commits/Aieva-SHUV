@@ -34,11 +34,11 @@ import matplotlib
 
 matplotlib.use("Agg", force=False)
 
-import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 
 from aieva.core.errors import ParseError
 from aieva.core.models import ParsedInput, SolveResult, Step, VisualizationResult
+from aieva.core.plotting import new_subplots  # noqa: E402
 from aieva.core.plugin_base import SubjectPlugin
 
 
@@ -108,7 +108,7 @@ class TemplatePlugin(SubjectPlugin):
             parsed_input = self.parse(parsed_input)
         value = float(parsed_input.sympy_expr)  # type: ignore[arg-type]
 
-        figure, axes = plt.subplots(figsize=(6.0, 4.0), dpi=100)
+        figure, axes = new_subplots(figsize=(6.0, 4.0), dpi=100)
         x = np.linspace(-5.0, 5.0, 100)
         axes.plot(x, value * np.ones_like(x), color="#1f77b4", linewidth=2.5)
         axes.set_title(f"the value is {value:g}")

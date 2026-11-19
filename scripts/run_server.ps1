@@ -22,4 +22,15 @@ if ($busy) {
 
 Write-Host "[aieva] server listening on http://${bind}:${port}  (docs: /docs, health: /health)"
 $python = Get-AievaPython
-& $python -m uvicorn server.main:app --host $bind --port $port @args
+
+# uvicorn writes its log to stderr - the same trick as in run_app.ps1 keeps
+# the script alive and the output readable.
+$previous = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+try {
+    & $python -m uvicorn server.main:app --host $bind --port $port @args 2>&1 | Write-AievaOutput
+    $code = $LASTEXITCODE
+} finally {
+    $ErrorActionPreference = $previous
+}
+exit $code

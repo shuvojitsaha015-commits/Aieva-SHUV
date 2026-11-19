@@ -27,12 +27,12 @@ import matplotlib
 
 matplotlib.use("Agg", force=False)
 
-import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 import sympy  # noqa: E402
 
 from aieva.core.errors import ParseError, SolveError  # noqa: E402
 from aieva.core.models import ParamSpec, VisualizationResult  # noqa: E402
+from aieva.core.plotting import new_figure, new_subplots  # noqa: E402
 from aieva.core.safe_parse import parse_text_expression  # noqa: E402
 
 #: The mesh resolution per quality level.
@@ -279,7 +279,7 @@ def surface_view(
         expression, parameter_symbols, parameters, quality, x_range, y_range
     )
 
-    fig = plt.figure(figsize=figsize, dpi=dpi)
+    fig = new_figure(figsize=figsize, dpi=dpi)
     ax = fig.add_subplot(111, projection="3d")
     surface = ax.plot_surface(
         x_grid, y_grid, z_values, cmap="viridis", alpha=0.9, linewidth=0, antialiased=True
@@ -352,7 +352,7 @@ def parametric_curve_view(
         y_values = np.asarray(functions["y"](t_values, *extra), dtype=float)
         z_values = np.asarray(functions["z"](t_values, *extra), dtype=float)
 
-    fig = plt.figure(figsize=figsize, dpi=dpi)
+    fig = new_figure(figsize=figsize, dpi=dpi)
     ax = fig.add_subplot(111, projection="3d")
     ax.plot(_mask(x_values), _mask(y_values), _mask(z_values), color="#1f77b4", linewidth=2)
     ax.set_title(f"parametric curve ({parameter} from {t_min:g} to {t_max:g})")
@@ -416,7 +416,7 @@ def parametric_surface_view(
         with np.errstate(all="ignore"):
             values[name] = np.asarray(function(u_grid, v_grid, *extra), dtype=float)
 
-    fig = plt.figure(figsize=figsize, dpi=dpi)
+    fig = new_figure(figsize=figsize, dpi=dpi)
     ax = fig.add_subplot(111, projection="3d")
     ax.plot_surface(
         _mask(values["x"]),
@@ -472,7 +472,7 @@ def polar_view(
     x_values = _mask(radii * np.cos(theta_values))
     y_values = _mask(radii * np.sin(theta_values))
 
-    fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
+    fig, ax = new_subplots(figsize=figsize, dpi=dpi)
     ax.plot(x_values, y_values, color="#1f77b4", linewidth=2)
     ax.axhline(0, color="0.4", linewidth=0.8)
     ax.axvline(0, color="0.4", linewidth=0.8)
@@ -535,7 +535,7 @@ def parametric_2d_view(
             _lambda(assignments["y"], [variable] + parameter_symbols)(t_values, *extra), dtype=float
         )
 
-    fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
+    fig, ax = new_subplots(figsize=figsize, dpi=dpi)
     ax.plot(_mask(x_values), _mask(y_values), color="#1f77b4", linewidth=2)
     ax.axhline(0, color="0.4", linewidth=0.8)
     ax.axvline(0, color="0.4", linewidth=0.8)
@@ -615,7 +615,7 @@ def _function_2d_view(
     if limit > 10 * (np.nanmax(np.abs(y_values.compressed())) or 1.0):
         y_values = np.ma.masked_where(jumps > limit / 2.0, y_values)
 
-    fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
+    fig, ax = new_subplots(figsize=figsize, dpi=dpi)
     ax.plot(x_values, y_values, color="#1f77b4", linewidth=2)
     ax.axhline(0, color="0.4", linewidth=0.8)
     ax.axvline(0, color="0.4", linewidth=0.8)

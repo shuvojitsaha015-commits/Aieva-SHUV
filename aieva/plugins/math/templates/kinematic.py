@@ -16,11 +16,11 @@ import matplotlib
 
 matplotlib.use("Agg", force=False)
 
-import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 
 from aieva.core.errors import SolveError  # noqa: E402
 from aieva.core.models import ParamSpec, Step, VisualizationResult  # noqa: E402
+from aieva.core.plotting import new_subplots  # noqa: E402
 
 #: The gravity that is used when the model does not give one.
 DEFAULT_GRAVITY = 9.8
@@ -166,7 +166,7 @@ def _render_projectile(problem: Any, solution: Any) -> VisualizationResult:
     xs = speed * math.cos(radians) * times
     ys = speed * math.sin(radians) * times - 0.5 * gravity * times**2
 
-    fig, ax = plt.subplots(figsize=(7.5, 5.5), dpi=100)
+    fig, ax = new_subplots(figsize=(7.5, 5.5), dpi=100)
     ax.plot(xs, ys, color="#1f77b4", linewidth=2.5, label="trajectory")
     ax.axhline(0, color="#444444", linewidth=1.2)
 
@@ -262,7 +262,7 @@ def _render_uniform_motion(problem: Any, solution: Any) -> VisualizationResult:
     meeting_time = solution.values["meeting_time"]
 
     times = np.linspace(0.0, max(meeting_time * 1.35, 1.0), 200)
-    fig, ax = plt.subplots(figsize=(7.5, 5.5), dpi=100)
+    fig, ax = new_subplots(figsize=(7.5, 5.5), dpi=100)
     ax.plot(times, start_one + speed_one * times, color="#1f77b4", linewidth=2.5, label="object 1")
     ax.plot(times, start_two + speed_two * times, color="#ff7f0e", linewidth=2.5, label="object 2")
     meeting_point = solution.values["meeting_point"]

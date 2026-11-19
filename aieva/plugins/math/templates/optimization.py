@@ -14,12 +14,12 @@ import matplotlib
 
 matplotlib.use("Agg", force=False)
 
-import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 import sympy  # noqa: E402
 
 from aieva.core.errors import SolveError  # noqa: E402
 from aieva.core.models import ParamSpec, Step, VisualizationResult  # noqa: E402
+from aieva.core.plotting import new_subplots  # noqa: E402
 
 
 def _objective(problem: Any) -> sympy.Expr:
@@ -119,7 +119,7 @@ def render(problem: Any, solution: Any) -> VisualizationResult:
     best_x = solution.values["x"]
     best_value = solution.values["objective"]
 
-    fig, ax = plt.subplots(figsize=(7.5, 5.5), dpi=100)
+    fig, ax = new_subplots(figsize=(7.5, 5.5), dpi=100)
     ax.plot(values, numbers, color="#1f77b4", linewidth=2.5, label="objective")
     ax.axvspan(low, high, color="#4080f0", alpha=0.08, label="the constraint")
     ax.plot([best_x], [best_value], "*", color="#2ca02c", markersize=17, zorder=5)

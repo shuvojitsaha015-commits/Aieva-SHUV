@@ -287,13 +287,30 @@ class LinearAlgebraScreen(Screen):
             return lambda: complexnum.argand_view(z, operation=operation, w=w, n=n)
         return None
 
+    def _canvas(self, figure: Any) -> Any:
+        """A live canvas - or a picture when the backend is not there.
+
+        The Kivy Matplotlib backend needs setuptools on Python 3.12 and
+        newer; without it the figure is shown as an image.
+        """
+        from aieva.ui.widgets.plot_canvas import figure_to_png, png_to_texture
+
+        try:
+            from kivy_garden.matplotlib.backend_kivyagg import FigureCanvasKivyAgg
+
+            return FigureCanvasKivyAgg(figure)
+        except Exception:  # noqa: BLE001 - the backend is optional
+            from kivy.uix.image import Image
+
+            picture = Image(size_hint=(1, 1))
+            picture.texture = png_to_texture(figure_to_png(figure))
+            return picture
+
     def _show(self, result: Any) -> None:
         """Show a computed visualisation."""
-        from kivy_garden.matplotlib.backend_kivyagg import FigureCanvasKivyAgg
-
         self.plot_area.clear_widgets()
         if result.figure is not None:
-            self.plot_area.add_widget(FigureCanvasKivyAgg(result.figure))
+            self.plot_area.add_widget(self._canvas(result.figure))
 
         meta = result.meta or {}
         lines: list[str] = []

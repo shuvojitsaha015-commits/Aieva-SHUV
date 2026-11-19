@@ -49,6 +49,7 @@ htmlcov/
 # --- editors and operating systems ---
 .idea/
 .vscode/
+*.iml
 *.swp
 .DS_Store
 Thumbs.db

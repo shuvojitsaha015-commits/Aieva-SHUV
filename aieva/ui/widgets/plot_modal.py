@@ -18,6 +18,7 @@ from kivy.uix.button import Button
 from kivy.uix.popup import Popup
 
 from aieva.core.models import ParamSpec
+from aieva.core.plotting import FigureOwner
 from aieva.plugins.math.equations import PlotSession
 from aieva.ui import theme
 from aieva.ui.widgets.plot_canvas import PlotCanvas
@@ -41,6 +42,7 @@ class PlotModal(Popup):
         parameters: list[ParamSpec] | None = None,
         latex: str = "",
         title: str = "Plot",
+        owner: FigureOwner | None = None,
         **kwargs: Any,
     ) -> None:
         kwargs.setdefault("size_hint", (0.85, 0.85))
@@ -52,8 +54,36 @@ class PlotModal(Popup):
         self._pending: dict[str, float] = {}
         self._scheduled = False
 
+        # The modal shows the figure - it does not own it. The owner
+        # (whoever built the figure) gives the memory back; that way a
+        # second plot on another screen is never touched.
+        self.owner = owner
+        self._figure = figure
+
         self.content = self._build_content(figure, parameters or [])
         self.bind(on_open=self._on_open)
+        self.bind(on_dismiss=self._on_dismiss)
+
+    # ------------------------------------------------------------------ api
+    @property
+    def figure(self) -> Any:
+        """The figure that is shown in the modal."""
+        return self._figure
+
+    def dispose(self) -> None:
+        """Give the memory of the shown figure back.
+
+        Only the figure of **this** modal is released - a plot that is
+        shown somewhere else keeps working. Calling it twice is safe.
+        """
+        canvas = self.canvas_widget
+        if canvas is not None:
+            canvas.set_figure(None)
+        self.canvas_widget = None
+        self._figure = None
+        self.session = None
+        if self.owner is not None:
+            self.owner.release()
 
     # ------------------------------------------------------------------ UI
     def _build_content(self, figure: Any, parameters: list[ParamSpec]) -> BoxLayout:
@@ -120,11 +150,21 @@ class PlotModal(Popup):
         root.add_widget(actions)
         return root
 
+    # -------------------------------------------------------------- closing
+    def dismiss(self, *_args: Any, **kwargs: Any) -> None:
+        """Close the popup and release the figure it shows."""
+        super().dismiss(*_args, **kwargs)
+        self.dispose()
+
     # -------------------------------------------------------------- actions
     def _on_open(self, *_args: Any) -> None:
         if self.session is not None and self.slider_panel is not None:
             for name, value in self.session.params.items():
                 self.slider_panel.set_value(name, value)
+
+    def _on_dismiss(self, *_args: Any) -> None:
+        """The popup is gone - the memory of the figure goes back."""
+        self.dispose()
 
     def _on_parameter_changed(self, name: str, value: float) -> None:
         """Queue a parameter update and refresh at most 30 times per second."""

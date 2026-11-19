@@ -99,4 +99,24 @@ without any explanation and without a markdown fence. This is what you sent:
 """
 
 
-__all__ = ["EXPLAIN_PROMPT", "OCR_PROMPT", "REPAIR_PROMPT", "WORDPROBLEM_PROMPT"]
+def render_prompt(template: str, **values: str) -> str:
+    """Fill the placeholders of a prompt - without touching the JSON braces.
+
+    ``str.format`` would read every ``{...}`` of the prompt as a
+    placeholder. The prompts of Aieva show the wanted JSON to the model,
+    so they are full of braces and ``format`` died with
+
+        KeyError: '\n  "problem_type"'
+    """
+    for key, value in values.items():
+        template = template.replace("{" + key + "}", value)
+    return template
+
+
+__all__ = [
+    "EXPLAIN_PROMPT",
+    "OCR_PROMPT",
+    "REPAIR_PROMPT",
+    "WORDPROBLEM_PROMPT",
+    "render_prompt",
+]

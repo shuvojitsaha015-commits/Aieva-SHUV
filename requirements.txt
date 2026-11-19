@@ -8,11 +8,15 @@ scipy
 mpmath
 matplotlib
 pillow
+# setuptools brings the "distutils" module on Python 3.12 and newer (it was
+# removed from the standard library) - the Kivy Matplotlib backend needs it.
+setuptools
 # The document readers of Phase 10 (Word / PowerPoint / PDF).
+# (the OCR itself needs only Pillow + NumPy - no OpenCV - so the app also
+#  runs on a weak board computer)
 python-docx
 python-pptx
 pymupdf
-opencv-python-headless
 requests
 python-dotenv
 pydantic

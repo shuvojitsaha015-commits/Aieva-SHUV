@@ -28,13 +28,13 @@ import matplotlib
 
 matplotlib.use("Agg", force=False)
 
-import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 import sympy  # noqa: E402
 from matplotlib.figure import Figure  # noqa: E402
 
 from aieva.core.errors import ParseError, VisualizationError  # noqa: E402
 from aieva.core.models import ParamSpec, ParsedInput, VisualizationResult  # noqa: E402
+from aieva.core.plotting import close_figure, new_subplots  # noqa: E402
 from aieva.core.safe_parse import parse_equation, parse_text_expression  # noqa: E402
 
 #: Symbols that are treated as the plot variables of an implicit curve.
@@ -400,7 +400,7 @@ def render(
     if param_values:
         params.update({str(k): float(v) for k, v in param_values.items()})
 
-    fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
+    fig, ax = new_subplots(figsize=figsize, dpi=dpi)
     evaluator = build_evaluator(info)
     x_min, x_max, y_min, y_max = view_window
 
@@ -429,7 +429,7 @@ def render(
             y_values = mask_discontinuities(y_values)
             ax.plot(x_values, y_values, color="#1f77b4", linewidth=2.0)
     except (ValueError, TypeError, ZeroDivisionError, OverflowError) as exc:
-        plt.close(fig)
+        close_figure(fig)
         raise VisualizationError(f"Could not plot the equation: {exc}") from exc
 
     _style_axes(ax, info, view_window)
@@ -560,7 +560,7 @@ class PlotSession:
 
     def close(self) -> None:
         """Release the Matplotlib figure."""
-        plt.close(self.figure)
+        close_figure(self.figure)
 
 
 # --------------------------------------------------------------------- plugin

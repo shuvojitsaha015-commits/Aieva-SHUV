@@ -13,12 +13,12 @@ import matplotlib
 
 matplotlib.use("Agg", force=False)
 
-import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 from matplotlib.patches import Rectangle  # noqa: E402
 
 from aieva.core.errors import SolveError  # noqa: E402
 from aieva.core.models import ParamSpec, Step, VisualizationResult  # noqa: E402
+from aieva.core.plotting import new_subplots  # noqa: E402
 
 
 def solve(problem: Any) -> Any:
@@ -88,7 +88,7 @@ def render(problem: Any, solution: Any) -> VisualizationResult:
     times = np.linspace(0.0, max(time * 1.1, 1.0), 200)
     quantities = initial + net * times
 
-    fig, (ax, tank) = plt.subplots(
+    fig, (ax, tank) = new_subplots(
         1, 2, figsize=(8.0, 5.0), dpi=100, gridspec_kw={"width_ratios": [2.0, 1.0]}
     )
     ax.plot(times, quantities, color="#1f77b4", linewidth=2.5, label="the level")

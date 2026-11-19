@@ -17,27 +17,34 @@ param(
 
 $ErrorActionPreference = "Stop"
 Set-Location (Join-Path $PSScriptRoot "..")
+. (Join-Path $PSScriptRoot "_python.ps1")
 
-function Get-AievaPython {
-    $candidates = @(
-        (Join-Path $PSScriptRoot "..\.venv\Scripts\pythonw.exe"),
-        (Join-Path $PSScriptRoot "..\.venv\Scripts\python.exe")
-    )
-    foreach ($candidate in $candidates) {
-        if (Test-Path $candidate) { return (Resolve-Path $candidate).Path }
-    }
-    $command = Get-Command python.exe -ErrorAction SilentlyContinue
-    if ($command) { return $command.Source }
-    Write-Error "Python was not found."
+$python = Get-AievaPythonw
+if (-not $python) {
+    Write-Host "[aieva] Python was not found - install it or run .\scripts\setup.ps1"
+    exit 1
 }
-
-$python = Get-AievaPython
 
 $arguments = @("-m", "aieva.core.service", "install-autostart")
 if ($OnLogon) { $arguments += @("--trigger", "onlogon") }
 if ($WithWindow) { $arguments += "--with-window" }
 
-& $python @arguments
+# The installer of the task writes to stderr when it falls back to another
+# method - that must not stop the script.
+$previous = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+try {
+    & $python @arguments 2>&1 | Write-AievaOutput
+    $code = $LASTEXITCODE
+} finally {
+    $ErrorActionPreference = $previous
+}
+
+if ($code -ne 0) {
+    Write-Host ""
+    Write-Host "[aieva] the task was not registered - the message above says why."
+    exit $code
+}
 
 Write-Host ""
 Write-Host "[aieva] the board service now starts with the computer."

@@ -14,13 +14,13 @@ import matplotlib
 
 matplotlib.use("Agg", force=False)
 
-import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 import sympy  # noqa: E402
-from matplotlib.patches import Arc  # noqa: E402
+from matplotlib.patches import Arc, Circle  # noqa: E402
 
 from aieva.core.errors import ParseError, SolveError  # noqa: E402
 from aieva.core.models import ParamSpec, VisualizationResult  # noqa: E402
+from aieva.core.plotting import new_subplots  # noqa: E402
 
 #: The colours used on the Argand diagram.
 AXIS_COLOR = "#444444"
@@ -73,7 +73,7 @@ def argand_view(
     if w is None:
         w = complex(1.0, 1.0)
 
-    fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
+    fig, ax = new_subplots(figsize=figsize, dpi=dpi)
     limit = max(abs(z), abs(w), 1.0) * 1.6
     ax.axhline(0, color=AXIS_COLOR, linewidth=1.0)
     ax.axvline(0, color=AXIS_COLOR, linewidth=1.0)
@@ -84,7 +84,7 @@ def argand_view(
     ax.set_xlim(-limit, limit)
     ax.set_ylim(-limit, limit)
 
-    circle = plt.Circle((0, 0), 1.0, fill=False, color=UNIT_COLOR, linestyle=":", linewidth=1.4)
+    circle = Circle((0, 0), 1.0, fill=False, color=UNIT_COLOR, linestyle=":", linewidth=1.4)
     ax.add_patch(circle)
     ax.plot([-1.0, 1.0], [0, 0], color=UNIT_COLOR, linewidth=0.8, alpha=0.6)
     ax.plot([0, 0], [-1.0, 1.0], color=UNIT_COLOR, linewidth=0.8, alpha=0.6)
@@ -231,7 +231,7 @@ def domain_coloring(
 
     rgb = hsv_to_rgb(np.stack([hue, saturation, value], axis=-1))
 
-    fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
+    fig, ax = new_subplots(figsize=figsize, dpi=dpi)
     ax.imshow(rgb, extent=(-2.0, 2.0, -2.0, 2.0), origin="lower")
     ax.set_title(f"domain colouring of {expression}")
     ax.set_xlabel("Re")
