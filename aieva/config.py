@@ -53,7 +53,12 @@ class Settings:
     """Immutable snapshot of the application configuration."""
 
     # --- LLM / cloud ---------------------------------------------------
+    #: The first Gemini key (the old, simple way).
     gemini_api_key: str = ""
+    #: **All** the Gemini keys - the first one is the one of
+    #: ``gemini_api_key``. Several keys mean more quota and a fallback
+    #: that stays inside Gemini (see :mod:`server.services.gemini`).
+    gemini_api_keys: tuple[str, ...] = ()
     gemini_model: str = "gemini-3.8-flash"
     openai_api_key: str = ""
     wolfram_app_id: str = ""
@@ -81,6 +86,19 @@ class Settings:
         return bool(self.gemini_api_key.strip())
 
     @property
+    def all_gemini_keys(self) -> tuple[str, ...]:
+        """Every Gemini key, without the empty ones and without duplicates.
+
+        The order is kept - the first key is the one that is tried first.
+        """
+        seen: list[str] = []
+        for key in (self.gemini_api_key, *self.gemini_api_keys):
+            value = key.strip()
+            if value and value not in seen:
+                seen.append(value)
+        return tuple(seen)
+
+    @property
     def cloud_enabled(self) -> bool:
         """Cloud calls are only allowed when we are online *and* have a key."""
         return not self.offline_mode and (self.has_gemini_key or self.mock_llm)
@@ -93,11 +111,24 @@ class Settings:
         return path
 
 
+def _split_keys(value: str | None) -> tuple[str, ...]:
+    """Split a list of keys (``a,b`` or ``a; b`` or one key).
+
+    The keys are separated by a comma or a semicolon - a key itself never
+    contains one of them.
+    """
+    if not value:
+        return ()
+    parts = value.replace(";", ",").split(",")
+    return tuple(part.strip() for part in parts if part.strip())
+
+
 def settings_from_env(env: dict[str, str] | None = None) -> Settings:
     """Build a :class:`Settings` from a mapping (defaults to ``os.environ``)."""
     src = dict(os.environ if env is None else env)
     return Settings(
         gemini_api_key=src.get("GEMINI_API_KEY", "").strip(),
+        gemini_api_keys=_split_keys(src.get("GEMINI_API_KEYS", "")),
         gemini_model=src.get("GEMINI_MODEL", "gemini-3.8-flash").strip() or "gemini-3.8-flash",
         openai_api_key=src.get("OPENAI_API_KEY", "").strip(),
         wolfram_app_id=src.get("WOLFRAM_APP_ID", "").strip(),

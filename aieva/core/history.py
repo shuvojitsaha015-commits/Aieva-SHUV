@@ -1,7 +1,7 @@
 """Local JSON history of the equations the user worked with.
 
 There is no database in v1 - a single JSON file inside the cache directory is
-enough and it keeps the app usable without any permissions on Android.
+enough and it keeps the app light.
 """
 
 from __future__ import annotations

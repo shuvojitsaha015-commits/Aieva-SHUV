@@ -1,7 +1,7 @@
 """The abstraction over the two ways a Matplotlib figure can be shown.
 
 On the desktop the figure is drawn by ``kivy_garden.matplotlib`` (a real
-canvas). Some Android builds cannot use that backend, so the figure is
+canvas). Some machines cannot use that backend, so the figure is
 rendered to a **PNG texture** instead and shown in a normal image widget.
 
 The application always uses :class:`PlotCanvas`; the backend is chosen

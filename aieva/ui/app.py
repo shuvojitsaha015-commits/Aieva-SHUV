@@ -13,6 +13,7 @@ needs a new plugin module - never a change in this file.
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 from typing import Any
@@ -55,10 +56,13 @@ from aieva.ui.screens.settings import SettingsScreen  # noqa: E402
 from aieva.ui.screens.solver import SolverScreen  # noqa: E402
 from aieva.ui.screens.whiteboard import WhiteboardScreen  # noqa: E402
 from aieva.ui.screens.wordproblem import WordProblemScreen  # noqa: E402
+from aieva.ui.widgets.lens import LensOverlay, LensResult  # noqa: E402
 from aieva.ui.widgets.plot_modal import PlotModal  # noqa: E402
 from aieva.ui.widgets.tab_bar import TabBar  # noqa: E402
 from aieva.ui.widgets.toast import show_toast  # noqa: E402
 from aieva.ui.workers import run_in_background  # noqa: E402
+
+LOGGER = logging.getLogger(__name__)
 
 KV_FILE = Path(__file__).with_name("main.kv")
 
@@ -67,6 +71,19 @@ DEFAULT_SUBJECT = "math"
 
 #: The screen that is open when the application starts.
 DEFAULT_SCREEN = "home"
+
+#: How long the application waits before it publishes the canvas (seconds).
+CANVAS_PUBLISH_SECONDS = 1.2
+
+#: The board mode: the canvas fills the screen and the navigation bar is
+#: hidden. It is switched on with ``AIEVA_BOARD_MODE=1`` - the way a board
+#: is used in a classroom.
+BOARD_MODE = os.environ.get("AIEVA_BOARD_MODE", "").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
 
 #: The destinations of the navigation bar: ``(screen, label)``.
 TABS: list[tuple[str, str]] = [
@@ -94,6 +111,15 @@ class AievaApp(App):
         install_global_handler(self._report_error)
         if KV_FILE.is_file():
             Builder.load_file(str(KV_FILE))
+
+        from kivy.core.window import Window
+
+        # A smart board is switched on for a whole lesson - the screen must
+        # never go to sleep.
+        try:
+            Window.keep_screen_on = True
+        except Exception:  # noqa: BLE001 - not every platform can do this
+            pass
 
         manager = ScreenManager()
         self.manager = manager
@@ -127,10 +153,18 @@ class AievaApp(App):
         self.ocr_worker = OcrWorker(name="aieva-app-ocr")
         self.solver_screen.ocr_worker = self.ocr_worker
         self.home.on_subject_changed = self._on_subject_changed
+        self.home.on_scan_board = self.scan_board
+        # Aieva IS the board: what the teacher writes on the canvas is
+        # published for the background service (no screen capture needed).
+        self.whiteboard_screen.on_request_read = self._read_board
+        self.whiteboard_screen.whiteboard.on_change = self._on_canvas_changed
         self.whiteboard_screen.on_request_plot = self._on_request_plot
         self.whiteboard_screen.on_request_solve = self._on_request_solve
 
         self.plot_modal: PlotModal | None = None
+        self.lens_overlay: LensOverlay | None = None
+        self.lens_result: LensResult | None = None
+        self._canvas_publish: Any = None
         self.current_subject: str = DEFAULT_SUBJECT
         self.home.set_subjects(subject_metas())
 
@@ -165,6 +199,13 @@ class AievaApp(App):
         bar_scroll.add_widget(self.tab_bar)
 
         container = BoxLayout(orientation="vertical")
+        self._bar_scroll = bar_scroll
+        if BOARD_MODE:
+            # The board mode: the canvas fills the screen, the navigation
+            # bar is hidden (the teacher does not need it on a board).
+            bar_scroll.height = 0
+            bar_scroll.opacity = 0
+            manager.current = "whiteboard"
         container.add_widget(bar_scroll)
         container.add_widget(manager)
         # the screens were measured before the bar took its space
@@ -237,7 +278,32 @@ class AievaApp(App):
             self.stop_background_service()
         elif action == "install":
             self._install_autostart()
+        elif action == "check":
+            self._check_computer()
         self._refresh_service_status()
+
+    def _check_computer(self) -> None:
+        """Ask the doctor whether this computer can read the board."""
+
+        def work() -> Any:
+            from aieva.core.doctor import build_report
+
+            return build_report()
+
+        def on_done(report: Any) -> None:
+            if report.ready:
+                self.settings_screen.set_service_status(
+                    "This computer is ready - the board is read in the background."
+                )
+                return
+            problems = report.problems
+            names = ", ".join(check.name for check in problems[:3])
+            self.settings_screen.set_service_status(f"{len(problems)} thing(s) to fix: {names}")
+
+        def on_error(exc: BaseException) -> None:
+            self.settings_screen.set_service_status(f"The check failed: {exc}")
+
+        run_in_background(work, on_result=on_done, on_error=on_error, name="aieva-doctor")
 
     def _install_autostart(self) -> None:
         """Start the service automatically with the computer."""
@@ -310,6 +376,164 @@ class AievaApp(App):
     def _capture_board(self) -> Any:
         """The image of the whiteboard (the capture source of the solver)."""
         return self.whiteboard_screen.whiteboard.export_to_image()
+
+    # ------------------------------------------------------- the lens of the board
+    def scan_board(self) -> None:
+        """The teacher tapped the lens - read what is on the board.
+
+        This is the *Google Lens* of the smart board: the picture of the
+        board appears, the teacher drags over the writing, and Aieva reads
+        it, solves it and shows the answer.
+
+        Everything slow happens in a worker thread - the window of the
+        teacher never freezes.
+        """
+        if self.lens_overlay is not None or self.lens_result is not None:
+            return
+        service = self._service_for_scan()
+        if service is None:
+            show_toast("No capture source is available for the board.")
+            return
+
+        def grab() -> Any:
+            source = service.source
+            if source is None:
+                raise RuntimeError("no capture source")
+            return source.grab().image
+
+        def on_capture(image: Any) -> None:
+            self._show_lens(image)
+
+        def on_error(exc: BaseException) -> None:
+            show_toast(f"The board could not be captured: {exc}")
+
+        run_in_background(grab, on_result=on_capture, on_error=on_error, name="aieva-lens")
+
+    def _on_canvas_changed(self, image: Any) -> None:
+        """The writing on the canvas changed - publish it for the service.
+
+        The picture goes into the folder the background service watches, so
+        the board is read **without any screen capture and without any
+        permission** - the way it works on every computer.
+        """
+        if self._canvas_publish is not None:
+            self._canvas_publish.cancel()
+        self._canvas_publish = Clock.schedule_once(
+            lambda _dt: self._publish_canvas(image), self.CANVAS_PUBLISH_SECONDS
+        )
+
+    def _publish_canvas(self, image: Any) -> None:
+        """Put the picture of the canvas into the folder of the service."""
+        from aieva.core.service.canvas import publish_canvas
+
+        config = ServiceConfig.from_env()
+        target = publish_canvas(config.folder, image)
+        if target is None:
+            LOGGER.info("The canvas could not be published")
+
+    def _read_board(self, image: Any) -> None:
+        """The teacher taps 'Read the board' - the writing is read now."""
+        from aieva.core.service.canvas import publish_canvas
+
+        service = self._service_for_scan()
+        if service is None:
+            show_toast("The board service is not available.")
+            return
+        publish_canvas(service.config.folder, image)
+
+        def read() -> Any:
+            return service.scan_now()
+
+        def on_result(run: Any) -> None:
+            self._show_lens_result(run)
+
+        def on_error(exc: BaseException) -> None:
+            show_toast(f"The board could not be read: {exc}")
+
+        run_in_background(read, on_result=on_result, on_error=on_error, name="aieva-canvas")
+
+    def _service_for_scan(self) -> BackgroundService | None:
+        """The service that does the work (it is started if it is not running)."""
+        if self.service is None:
+            self.start_background_service()
+        return self.service
+
+    def _show_lens(self, image: Any) -> None:
+        """Show the picture of the board with the draggable area."""
+        overlay = LensOverlay(image=image)
+        overlay.set_image(image)
+        overlay.on_confirm = self._on_lens_confirmed
+        overlay.on_cancel = self._close_lens
+        self.lens_overlay = overlay
+        from kivy.core.window import Window
+
+        Window.add_widget(overlay)
+
+    def _close_lens(self) -> None:
+        """Take the lens away."""
+        from kivy.core.window import Window
+
+        if self.lens_overlay is not None:
+            Window.remove_widget(self.lens_overlay)
+            self.lens_overlay = None
+
+    def _on_lens_confirmed(self, region: tuple[int, int, int, int]) -> None:
+        """The area is picked - read it (in the background)."""
+        self._close_lens()
+        service = self._service_for_scan()
+        if service is None:
+            show_toast("The board service is not available.")
+            return
+
+        # The area is remembered: the key (F8) and the button of the floating
+        # window read this part of the board again.
+        from aieva.core.service.scan import remember_region
+
+        remember_region(service.config.state_file, region)
+
+        def read() -> Any:
+            return service.scan_now(region)
+
+        def on_result(run: Any) -> None:
+            self._show_lens_result(run)
+
+        def on_error(exc: BaseException) -> None:
+            show_toast(f"The board could not be read: {exc}")
+
+        run_in_background(read, on_result=on_result, on_error=on_error, name="aieva-lens-ocr")
+
+    def _show_lens_result(self, run: Any) -> None:
+        """The popup with the reading, the answer and the graph."""
+        popup = LensResult()
+        popup.show(
+            reading=run.plain or run.latex,
+            answer=run.answer,
+            steps=run.steps,
+            plot=run.plot,
+            note=f"read in {run.duration_ms:.0f} ms",
+        )
+        popup.on_close = self._close_lens_result
+        popup.on_open = self._open_lens_result
+        self.lens_result = popup
+        from kivy.core.window import Window
+
+        Window.add_widget(popup)
+
+    def _close_lens_result(self) -> None:
+        """Take the popup away."""
+        from kivy.core.window import Window
+
+        if self.lens_result is not None:
+            Window.remove_widget(self.lens_result)
+            self.lens_result = None
+
+    def _open_lens_result(self, reading: str) -> None:
+        """The teacher wants the reading in the solver screen."""
+        self._close_lens_result()
+        if self.manager is not None:
+            self.manager.current = "solver"
+        if reading:
+            self.solver_screen.solve_text(reading)
 
     def _on_request_solve(self, image: Any) -> None:
         """The user asked to solve the board - switch to the solver screen."""

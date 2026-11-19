@@ -5,6 +5,19 @@
 > target**; the code is written so that the same sources run on an Android
 > board. This document says honestly what is ready, what is not, and what the
 > packaging cycle has to do.
+>
+> **The classroom only has smart boards.** The question is therefore not
+> "does it run on a laptop" but "does the always-on application work on the
+> board". The answer has two parts:
+>
+> 1. **Aieva IS the board.** The teacher writes on Aieva's own canvas, so
+>    Aieva knows what is written - **no screen capture, no permission, no
+>    Android specific code**. This path is implemented and tested
+>    (`aieva/core/service/canvas.py`).
+> 2. **Reading other applications** (a PDF that is open on the board) needs
+>    the MediaProjection. The Python side and the Java helper are written
+>    (`aieva/core/ocr/android_bridge.py`, `aieva/android/java/`), but they
+>    have **not** been run on a physical board yet.
 
 ---
 
@@ -15,7 +28,7 @@
 | Does the UI run on Android? | The UI is **native Kivy** - no WebView, no browser, no JavaScript runtime. The same Python sources run. |
 | Do the maths libraries build for Android? | `sympy`, `mpmath`, `numpy`, `pillow` and `matplotlib` are pure Python / wheels with an Android port. **SciPy and OpenCV are not needed** (see §4). |
 | Where does the heavy work happen? | On the **fog server** (OCR, the LLM, the word problems). The board only draws and touches. |
-| Is there an APK? | **No.** No `buildozer.spec`, no Android SDK in the build environment, no signed artifact. This is a deliberate decision of this cycle, not an oversight. |
+| Is there an APK? | **Not yet.** The recipe (`buildozer.spec`) is written, but there is no Android SDK in the build environment and no signed artifact. This is a deliberate decision of this cycle, not an oversight. |
 
 ---
 
@@ -96,9 +109,12 @@ they survive a restart.
 | Item | State | Note |
 |---|---|---|
 | The APK itself | **missing** | no Android SDK, no signing key and no decision about the distribution in this cycle |
-| `buildozer.spec` | **missing on purpose** | it is only written when the packaging cycle starts (the recipe is in §5) |
+| `buildozer.spec` | **written** | the recipe is in the root of the repository; the artifact is built in the packaging cycle |
 | `Dockerfile.buildozer` | **missing on purpose** | same as above |
-| The screen capture of the board | **a stub** | `AndroidProjectionSource` in `aieva/core/ocr/capture.py` - the MediaProjection consent dialog and the `VirtualDisplay` are missing. The whiteboard capture and the photo import work today. |
+| The screen capture of the board | **written, not tested on a device** | `AndroidProjectionSource` talks to a `MediaProjectionBridge` (tested with a fake); the Java helper (`aieva/android/java/AievaProjection.java`) asks for the permission and reads the frames. It still has to run on a real board. |
+| The canvas of Aieva as the picture of the board | **done** | `aieva/core/service/canvas.py` - the app publishes its canvas, the service reads it. No capture, no permission - this is the path that works on an Android board today. |
+| The APK | **recipe written** | `buildozer.spec` exists (with the Java helper, the permissions and the landscape orientation) - the artifact itself is not built. |
+| The automatic start on the board | **done for Termux** | `scripts/install_termux_autostart.sh` writes the systemd unit of the user, `scripts/termux_boot.sh` is the boot script for the boards without systemd. |
 | The measurements on a board | **missing** | no FPS / latency numbers from real hardware - the timings of this repository come from a desktop |
 | The `kivy_garden.matplotlib` on Android | **not verified** | the PNG fallback exists for exactly this case, but it was never run on a device |
 
@@ -134,7 +150,9 @@ Three ways, in the order of the effort:
    - `python -m aieva.ui.app` + `uvicorn server.main:app`.
 2. **A Python runtime on the board** (Termux + a Kivy build)
    - the same sources, the same server;
-   - the touch targets and the DPI scaling already fit the board.
+   - the touch targets and the DPI scaling already fit the board;
+   - `scripts/install_termux_autostart.sh` starts the service with the board
+     (systemd unit of the user) - after that nothing has to be typed.
 3. **An APK** (a later packaging cycle)
    - write `buildozer.spec` with the dependencies of §4,
    - build it in a container (so every teammate gets the same artifact),
@@ -145,12 +163,13 @@ Three ways, in the order of the effort:
 
 ## 6. The checklist of the packaging cycle
 
-- [ ] `buildozer.spec` with the requirements of §4, the permissions and the
+- [x] `buildozer.spec` with the requirements of §4, the permissions and the
       landscape orientation.
 - [ ] `Dockerfile.buildozer` + `scripts/build_apk.sh` (a reproducible build).
 - [ ] Verify that `kivy_garden.matplotlib` works on the device - otherwise
       the `png` backend of `PlotCanvas` is used automatically.
-- [ ] The MediaProjection capture (`AndroidProjectionSource`).
+- [x] The MediaProjection capture in Python (`AndroidProjectionSource` +
+      the bridge) - **the Java helper still has to prove itself on a board**.
 - [ ] The demos A - H on the device, with the FPS / latency in
       `docs/PROGRESS.md`.
 - [ ] The tag `v1.0.0` (see [ADR-003](DECISIONS.md) for the versioning).

@@ -14,13 +14,29 @@ Read the mathematical expression in the image and answer with STRICT JSON:
   "latex": "the expression in LaTeX, for example y = x^2 + 3x",
   "plain": "the same expression as a SymPy parsable string, for example y = x**2 + 3*x",
   "confidence_note": "one short sentence about how sure you are and what could be wrong",
-  "kind": "expression | equation | text | unknown"
+  "kind": "expression | equation | text | unknown",
+  "intent": "solve | graph | both | none",
+  "chart": null
 }
 
 Rules:
 * "plain" MUST be parsable by SymPy (use ** for the power, * for the product).
+* "intent" says what should be done with the problem:
+  - "solve"   the teacher wants the answer (an equation to solve, a value to find)
+  - "graph"   the teacher wants the picture (a function to plot, a curve to see)
+  - "both"    the answer and the picture are wanted
+  - "none"    there is no mathematics on the board
+* "chart" is for a TABLE of values (a row of numbers, a small table of
+  measurements). It is null when there is no table. When there is one, answer
+  with:
+  {"title": "what the table shows", "labels": ["name", "name"],
+   "values": [1.5, 2.5], "kind": "bar | line | pie", "unit": "the unit"}
+  - "labels" and "values" must have the same length
+  - "kind" is "bar" for a comparison, "line" for a development over the labels
+    and "pie" when the values are shares of a whole
 * Only output the JSON object, no explanation and no markdown fence.
-* If the image contains no maths, use "kind": "unknown" and an empty "latex".
+* If the image contains no maths, use "kind": "unknown", "intent": "none" and an
+  empty "latex".
 """
 
 #: The explanation prompt - the LLM explains, it must not change the answer.

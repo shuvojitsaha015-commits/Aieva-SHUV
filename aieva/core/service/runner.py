@@ -29,8 +29,9 @@ from pathlib import Path
 from typing import Any
 
 from aieva.core.service.config import ServiceConfig, resolve
+from aieva.core.service.scan import clear_request, read_region, read_request
 from aieva.core.service.sources import NothingToCapture, build_source
-from aieva.core.service.state import ServiceState
+from aieva.core.service.state import ServiceState, clear_stop_request, read_stop_request
 from aieva.core.service.triggers import TriggerPolicy
 
 LOGGER = logging.getLogger(__name__)
@@ -53,6 +54,8 @@ class ServiceRun:
     answer: str = ""
     answer_latex: str = ""
     steps: list[dict[str, Any]] = field(default_factory=list)
+    #: The rectangle of the board that was read (pixels of the board).
+    region: tuple[int, int, int, int] | None = None
     plot: str = ""
     capture: str = ""
     source: str = ""
@@ -70,6 +73,7 @@ class ServiceRun:
             "answer_latex": self.answer_latex,
             "steps": self.steps,
             "plot": self.plot,
+            "region": list(self.region) if self.region else None,
             "capture": self.capture,
             "source": self.source,
             "error": self.error,
@@ -161,7 +165,19 @@ class BackgroundService:
         self.state.save(self.config.state_file)
         LOGGER.info("The background service watches the board every %s s", self.config.poll_seconds)
         while not self._stop.is_set():
+            if read_stop_request(self.config.state_file):
+                # the tray (or a script) asked the service to stop
+                clear_stop_request(self.config.state_file)
+                LOGGER.info("The service was asked to stop")
+                break
             try:
+                request = read_request(self.config.state_file)
+                if request is not None:
+                    clear_request(self.config.state_file)
+                    run = self.scan_now(_region_of(request))
+                    LOGGER.info("The board was read on request: %s", run.plain or run.latex)
+                    self._stop.wait(self.config.poll_seconds)
+                    continue
                 run = self.run_once()
                 if run.ran:
                     LOGGER.info("The board was read: %s", run.plain or run.latex)
@@ -193,6 +209,28 @@ class BackgroundService:
         run.duration_ms = (time.perf_counter() - started) * 1000.0
         return run
 
+    def scan_now(self, region: tuple[int, int, int, int] | None = None) -> ServiceRun:
+        """Read the board right now - the teacher tapped it.
+
+        This is the *Google Lens* of the board: a tap, and the reading (with
+        the solution and the graph) appears in the floating window.
+
+        Without an area the whole board is read. But the area the teacher
+        picked last is remembered - so the key (``F8``) and the button of
+        the floating window read *that* part of the board again.
+        """
+        source = self.source
+        if source is None:
+            raise RuntimeError("No capture source is available")
+        capture = source.grab()
+        area = region or read_region(self.config.state_file)
+        if area:
+            capture = capture.crop(area)
+        started = time.perf_counter()
+        run = self._process(capture.image, capture, region=area)
+        run.duration_ms = (time.perf_counter() - started) * 1000.0
+        return run
+
     def status(self) -> dict[str, Any]:
         """What the service is doing right now."""
         return self.state.to_dict()
@@ -205,8 +243,18 @@ class BackgroundService:
             os.environ["AIEVA_SERVER_KEY"] = self.config.server_api_key
 
     # ------------------------------------------------------------ internals
-    def _process(self, image: Any, capture: Any) -> ServiceRun:
-        """Read the picture and publish the result."""
+    def _process(
+        self,
+        image: Any,
+        capture: Any,
+        region: tuple[int, int, int, int] | None = None,
+    ) -> ServiceRun:
+        """Read the picture and publish the result.
+
+        ``region`` is the rectangle of the board that was read - it goes
+        into the result, so the floating window can put the popup next to
+        the writing.
+        """
         capture_path = self._save_capture(image)
         try:
             result = self.pipeline.run(image)
@@ -215,14 +263,18 @@ class BackgroundService:
             self.trigger.remember(image)
             raise
         text = (result.plain or result.latex or "").strip()
+        intent = self._intent(result, text)
         answer = ""
         answer_latex = ""
         steps: list[dict[str, Any]] = []
-        if self.config.auto_solve and text:
+        if self.config.auto_solve and text and intent.solve:
             answer, answer_latex, steps = self._solve(text)
         plot = ""
-        if self.config.auto_plot and text:
+        if self.config.auto_plot and text and intent.graph:
             plot = self._draw(text)
+        if not plot:
+            # a table of values is a chart, not a function
+            plot = self._draw_chart(getattr(result, "chart", None))
         payload = {
             "created_at": time.time(),
             "source": capture.source,
@@ -233,10 +285,12 @@ class BackgroundService:
             "kind": result.kind,
             "engine": result.engine,
             "needs_manual_input": result.needs_manual_input,
+            "intent": intent.to_dict(),
             "answer": answer,
             "answer_latex": answer_latex,
             "steps": steps,
             "plot": plot,
+            "region": list(region) if region else None,
         }
         self._publish(payload)
         self._update_state(payload)
@@ -254,9 +308,57 @@ class BackgroundService:
             answer_latex=answer_latex,
             steps=steps,
             plot=plot,
+            region=region,
             capture=str(capture_path) if capture_path else "",
             source=capture.source,
         )
+
+    def _intent(self, result: Any, text: str) -> Any:
+        """What has to be done with the problem.
+
+        Gemini decides (it read the board). When it did not say anything the
+        local rules do it - the board must not stand still because the cloud
+        had a bad day.
+        """
+        from aieva.core.service.intent import decide
+        from aieva.plugins.math.classify import classify
+
+        classification = classify(text) if text else None
+        intent = decide(str(getattr(result, "intent", "") or ""), classification)
+        if intent.source == "gemini":
+            LOGGER.info("Gemini asks for: %s", intent.raw)
+        return intent
+
+    def _draw_chart(self, chart: Any) -> str:
+        """Draw the chart of a table of values and return the file.
+
+        The renderer is in the core, so every subject can use it - a table of
+        speeds (physics) is drawn exactly like a table of marks (maths).
+        """
+        if not chart:
+            return ""
+        figure = None
+        try:
+            from aieva.core.charts import ChartData, chart_figure
+
+            data = ChartData.from_dict(chart)
+            if data.is_empty():
+                return ""
+            figure = chart_figure(data)
+        except Exception as exc:  # noqa: BLE001 - the picture is a nice to have
+            LOGGER.info("The chart could not be drawn: %s", exc)
+            return ""
+        try:
+            directory = resolve(self.config.captures_dir).parent / "plots"
+            directory.mkdir(parents=True, exist_ok=True)
+            target = directory / f"chart-{int(time.time() * 1000)}.png"
+            figure.savefig(target, dpi=110, bbox_inches="tight")
+            return str(target)
+        except Exception as exc:  # noqa: BLE001 - the picture is a nice to have
+            LOGGER.info("The chart could not be saved: %s", exc)
+            return ""
+        finally:
+            self._close_figure(figure)
 
     def _save_capture(self, image: Any) -> Path | None:
         """Keep the picture of the board (for the history)."""
@@ -385,6 +487,17 @@ class BackgroundService:
 def result_path(state_file: str | Path) -> Path:
     """The file the service writes and the floating window reads."""
     return Path(state_file).with_name(RESULT_FILE_NAME)
+
+
+def _region_of(request: dict[str, Any]) -> tuple[int, int, int, int] | None:
+    """The area of the board the teacher tapped (if there is one)."""
+    region = request.get("region")
+    if not region or len(region) != 4:
+        return None
+    try:
+        return tuple(int(value) for value in region)  # type: ignore[return-value]
+    except (TypeError, ValueError):
+        return None
 
 
 __all__ = ["RESULT_FILE_NAME", "BackgroundService", "Notifier", "ServiceRun", "result_path"]

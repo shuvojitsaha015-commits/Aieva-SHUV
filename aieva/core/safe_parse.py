@@ -253,11 +253,13 @@ def parse_equation(text: str) -> sympy.Eq:
         raise ParseError("Both sides of the equation must be filled in")
 
     definition = _FUNCTION_DEFINITION_RE.match(lhs_text)
-    if definition:
+    if definition and definition.group("name") not in ALLOWED_NAMES:
+        # a new function is defined: f(x) = x^2
         fname = definition.group("name")
         arg = definition.group("arg")
         lhs: sympy.Basic = sympy.Function(fname)(sympy.Symbol(arg))
     else:
+        # a known function (sin, cos, log, ...) is a normal expression
         lhs = parse_text_expression(lhs_text)
     rhs = parse_text_expression(rhs_text)
 

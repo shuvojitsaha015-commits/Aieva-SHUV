@@ -130,3 +130,23 @@ def test_validate_expression_reports_bad_characters() -> None:
     with pytest.raises(ParseError) as excinfo:
         validate_expression("x; y")
     assert "Illegal character" in excinfo.value.message
+
+
+def test_a_known_function_is_not_a_definition() -> None:
+    """`sin(x) = 0.5` is an equation - not the definition of a new function."""
+    import sympy
+
+    equation = parse_equation("sin(x) = 0.5")
+    assert equation.lhs.func is sympy.sin
+
+
+def test_a_new_function_is_still_a_definition() -> None:
+    equation = parse_equation("f(x) = x^2")
+    assert equation.lhs.func.__name__ == "f"
+
+
+def test_the_other_functions_work_too() -> None:
+    import sympy
+
+    assert parse_equation("cos(x) = 1").lhs.func is sympy.cos
+    assert parse_equation("log(x) = 2").lhs.func is sympy.log

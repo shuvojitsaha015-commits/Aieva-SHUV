@@ -11,6 +11,7 @@ contact size, so the check is defensive and can be switched off.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -57,6 +58,8 @@ class Whiteboard(Widget):
         super().__init__(**kwargs)
         self._current_line: Line | None = None
         self._current_color: Color | None = None
+        #: Called when the writing changed (the board has to be read again).
+        self.on_change: Callable[[], None] | None = None
 
     # ----------------------------------------------------------------- touch
     def on_touch_down(self, touch: Any) -> bool:
@@ -89,13 +92,20 @@ class Whiteboard(Widget):
         if self._active is not touch:
             return False
         self._active = None
+        self._changed()
         return True
+
+    def _changed(self) -> None:
+        """Tell the application that the writing changed."""
+        if self.on_change is not None:
+            self.on_change()
 
     # ------------------------------------------------------------- commands
     def clear(self) -> None:
         """Remove every stroke."""
         self.strokes = []
         self.canvas.clear()
+        self._changed()
 
     def undo(self) -> None:
         """Remove the last stroke."""
@@ -103,6 +113,7 @@ class Whiteboard(Widget):
             return
         self.strokes = list(self.strokes[:-1])
         self._redraw_all()
+        self._changed()
 
     def set_pen_color(self, name: str) -> None:
         """Select a pen colour by name (``black``, ``red``, ...)."""

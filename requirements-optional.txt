@@ -1,0 +1,11 @@
+# Optional extras. NEVER required for the core to work.
+# Install with:  pip install -r requirements-optional.txt
+#
+# latex2sympy2    alternative LaTeX -> SymPy backend
+# marker-pdf      better document -> markdown+LaTeX extraction (heavy)
+# wolframalpha    optional answer verification
+# manim           pre-rendered animations (stretch goal)
+latex2sympy2
+marker-pdf
+wolframalpha
+manim

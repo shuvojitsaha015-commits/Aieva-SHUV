@@ -58,7 +58,19 @@ async def ocr(image: UploadFile = File(...)) -> OcrResponse:
         plain=str(answer.get("plain", "")),
         confidence_note=str(answer.get("confidence_note", "")),
         kind=str(answer.get("kind", "unknown")),
+        intent=str(answer.get("intent", "") or "").strip().lower(),
+        chart=_chart_of(answer.get("chart")),
     )
+
+
+def _chart_of(value: object) -> dict[str, object] | None:
+    """The table of values the model read (``None`` when there is none)."""
+    if not isinstance(value, dict):
+        return None
+    from aieva.core.charts import ChartData
+
+    data = ChartData.from_dict(value)
+    return None if data.is_empty() else data.to_dict()
 
 
 __all__ = ["router"]

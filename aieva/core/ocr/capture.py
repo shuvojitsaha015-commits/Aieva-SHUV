@@ -2,12 +2,9 @@
 
 A :class:`ScreenSource` knows how to grab the current screen:
 
-* :class:`CanvasSource` - the whiteboard canvas (works everywhere, also on the
-  Android board);
+* :class:`CanvasSource` - the whiteboard canvas of the application;
 * :class:`DesktopScreenSource` - the desktop screen via ``PIL.ImageGrab``
   (development on a laptop);
-* :class:`AndroidProjectionSource` - a **stub** for the Android MediaProjection
-  (finished in Phase 11 when the board is in front of us).
 
 Every source returns a :class:`Capture` with the image and the pixel
 coordinates of the captured area, so a region can be cut out of it.
@@ -119,29 +116,6 @@ class DesktopScreenSource(ScreenSource):
         )
 
 
-class AndroidProjectionSource(ScreenSource):
-    """A stub for the Android MediaProjection.
-
-    The projection needs ``pyjnius`` and a permission dialog, which is done in
-    Phase 11. Until then the app falls back to the whiteboard or to an
-    imported photo.
-    """
-
-    name = "android"
-
-    def __init__(self, service: Any = None) -> None:
-        self.service = service
-
-    def available(self) -> bool:
-        return self.service is not None
-
-    def grab(self) -> Capture:
-        raise RuntimeError(
-            "The Android screen projection is not available yet - use the "
-            "whiteboard or import a screenshot."
-        )
-
-
 def default_sources(whiteboard: Any = None) -> list[ScreenSource]:
     """The capture sources in the order they should be tried."""
     sources: list[ScreenSource] = []
@@ -154,7 +128,6 @@ def default_sources(whiteboard: Any = None) -> list[ScreenSource]:
 
 
 __all__ = [
-    "AndroidProjectionSource",
     "CanvasSource",
     "Capture",
     "DesktopScreenSource",

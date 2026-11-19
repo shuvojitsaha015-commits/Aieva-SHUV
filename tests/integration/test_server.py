@@ -58,7 +58,7 @@ def test_ocr_answers_in_mock_mode(client: TestClient) -> None:
     )
     assert response.status_code == 200
     payload = response.json()
-    assert set(payload) == {"latex", "plain", "confidence_note", "kind"}
+    assert set(payload) == {"latex", "plain", "confidence_note", "kind", "intent", "chart"}
     assert payload["plain"]
 
 
@@ -196,7 +196,7 @@ def test_extract_json_rejects_garbage() -> None:
 def test_the_service_retries(monkeypatch) -> None:
     calls = {"count": 0}
 
-    def failing(self, prompt, image_bytes=None, mime_type="image/png"):
+    def failing(self, prompt, image_bytes=None, mime_type="image/png", key=""):
         calls["count"] += 1
         raise RuntimeError("boom")
 

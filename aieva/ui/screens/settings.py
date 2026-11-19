@@ -240,6 +240,18 @@ class SettingsScreen(Screen):
         )
         auto_button.bind(on_release=lambda _b: self._service_action("install"))
         row.add_widget(auto_button)
+
+        check_button = Button(
+            text="Check this computer",
+            size_hint_x=None,
+            width=dp(220),
+            background_normal="",
+            background_color=theme.SURFACE_ALT,
+            color=theme.TEXT,
+            font_size=theme.sp_size(16),
+        )
+        check_button.bind(on_release=lambda _b: self._service_action("check"))
+        row.add_widget(check_button)
         root.add_widget(row)
 
         # --- the actions -----------------------------------------------

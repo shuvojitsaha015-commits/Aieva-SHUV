@@ -1,6 +1,6 @@
 """Dependency free numerical helpers.
 
-The application targets Android boards, where SciPy is painful to package.
+The application is a Windows program, where SciPy is painful to package.
 Everything the maths core needs numerically therefore lives here and SciPy is
 only an *optional* accelerator:
 

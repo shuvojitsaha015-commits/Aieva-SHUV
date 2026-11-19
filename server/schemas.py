@@ -1,7 +1,7 @@
 """The request and response models of the Aieva server.
 
-The models are the contract of the API - they are documented in
-``docs/API_CONTRACT.md``.
+The models are the contract of the API - every answer is checked against
+them before it leaves the server.
 """
 
 from __future__ import annotations
@@ -33,6 +33,11 @@ class OcrResponse(BaseModel):
     plain: str = ""
     confidence_note: str = ""
     kind: str = "unknown"
+    #: What should be done with the problem (``solve``, ``graph``, ``both``,
+    #: ``none``) - the model decides, the rules are only the fallback.
+    intent: str = ""
+    #: The table of values the model read (``None`` when there is no table).
+    chart: dict[str, object] | None = None
 
 
 class ExplainRequest(BaseModel):

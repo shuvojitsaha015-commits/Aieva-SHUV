@@ -5,7 +5,7 @@
 * :mod:`aieva.core.ocr.pipeline` - the pipeline that validates with SymPy.
 * :mod:`aieva.core.ocr.worker` - the background worker / service.
 * :mod:`aieva.core.ocr.capture` - the screen capture sources.
-* :mod:`aieva.core.ocr.region_selector` - the Kivy region selection overlay.
+* :mod:`aieva.ui.widgets.region_selector` - the Kivy region selection overlay.
 """
 
 from aieva.core.ocr.engines import (
@@ -14,7 +14,6 @@ from aieva.core.ocr.engines import (
     MockOcr,
     OcrEngine,
     OcrResult,
-    Pix2TextOcr,
 )
 from aieva.core.ocr.pipeline import OcrPipeline
 from aieva.core.ocr.preprocess import PreprocessOptions, image_hash, preprocess
@@ -26,7 +25,6 @@ __all__ = [
     "OcrEngine",
     "OcrPipeline",
     "OcrResult",
-    "Pix2TextOcr",
     "PreprocessOptions",
     "image_hash",
     "preprocess",

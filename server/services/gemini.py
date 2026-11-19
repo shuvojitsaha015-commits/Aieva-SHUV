@@ -14,6 +14,7 @@ import json
 import logging
 import re
 import time
+from collections.abc import Sequence
 from typing import Any
 
 from aieva.config import get_settings
@@ -34,6 +35,7 @@ MOCK_OCR = {
     "plain": "y = x**2 + 3*x",
     "confidence_note": "mock answer - the LLM was not called",
     "kind": "equation",
+    "intent": "both",
 }
 
 MOCK_EXPLAIN = {
@@ -98,25 +100,53 @@ def extract_json(text: str) -> Any:
 
 
 class GeminiService:
-    """Talks to Gemini (or to the mock answers)."""
+    """Talks to Gemini (or to the mock answers).
+
+    **Several keys at the same time.** The service knows a *pool* of Gemini
+    keys (``GEMINI_API_KEYS``, separated by a comma). Every key has its own
+    quota, so several keys mean:
+
+    * more room - the board keeps working while one key is busy,
+    * a fallback **inside Gemini** - when a key runs out (or is refused),
+      the next one is tried at once, without any waiting.
+
+    The fallback stays in Gemini on purpose: the OCR of the board needs a
+    model that reads a picture, and the answers of the two services must
+    have the same shape. A second model would only be a second thing that
+    can go wrong.
+    """
 
     def __init__(
         self,
         api_key: str | None = None,
         model: str | None = None,
         mock: bool | None = None,
+        api_keys: Sequence[str] | None = None,
     ) -> None:
         settings = get_settings()
-        self.api_key = api_key if api_key is not None else settings.gemini_api_key
+        if api_keys is not None:
+            self.api_keys: tuple[str, ...] = tuple(
+                key.strip() for key in api_keys if key and key.strip()
+            )
+        elif api_key is not None:
+            self.api_keys = (api_key.strip(),) if api_key.strip() else ()
+        else:
+            self.api_keys = settings.all_gemini_keys
+        self.api_key = self.api_keys[0] if self.api_keys else ""
         self.model = model or settings.gemini_model
         self.mock = settings.mock_llm if mock is None else mock
-        self._client: Any = None
+        self._clients: dict[str, Any] = {}
 
     # ------------------------------------------------------------------ api
     @property
     def available(self) -> bool:
         """``True`` when a real call is possible."""
-        return bool(self.api_key) and not self.mock
+        return bool(self.api_keys) and not self.mock
+
+    @property
+    def key_count(self) -> int:
+        """How many keys the service knows."""
+        return len(self.api_keys)
 
     def complete_json(
         self,
@@ -137,36 +167,51 @@ class GeminiService:
             return extract_json(repaired)
 
     # ------------------------------------------------------------ internals
-    def _client_or_create(self) -> Any:
-        if self._client is None:
+    def _client_or_create(self, key: str) -> Any:
+        """The client of one key (one client per key)."""
+        client = self._clients.get(key)
+        if client is None:
             try:
                 from google import genai
             except ImportError as exc:  # pragma: no cover - the SDK is optional
                 raise CloudError("The google-genai package is not installed") from exc
-            self._client = genai.Client(api_key=self.api_key)
-        return self._client
+            client = genai.Client(api_key=key)
+            self._clients[key] = client
+        return client
 
     def _call_with_retries(self, prompt: str, image_bytes: bytes | None, mime_type: str) -> str:
-        """One request with two retries and an exponential backoff."""
+        """One request - every key is tried, then the whole list again.
+
+        With one key this is the old behaviour: three tries with an
+        exponential backoff. With several keys a key that fails (its quota
+        is gone, it is refused) is **skipped at once** - the next key
+        answers without any waiting.
+        """
+        keys = list(self.api_keys)
+        if not keys:
+            raise CloudError("No Gemini API key is configured")
         last_error: Exception | None = None
-        for attempt in range(MAX_RETRIES + 1):
-            try:
-                return self._call_once(prompt, image_bytes, mime_type)
-            except Exception as exc:  # noqa: BLE001 - the SDK raises many types
-                last_error = exc
-                if attempt >= MAX_RETRIES:
-                    break
-                delay = BACKOFF_BASE * (2**attempt)
-                LOGGER.warning(
-                    "Gemini call failed (%s) - retry %d in %.1fs", exc, attempt + 1, delay
-                )
+        for round_index in range(MAX_RETRIES + 1):
+            for index, key in enumerate(keys):
+                try:
+                    return self._call_once(prompt, image_bytes, mime_type, key)
+                except Exception as exc:  # noqa: BLE001 - the SDK raises many types
+                    last_error = exc
+                    LOGGER.warning(
+                        "Gemini call failed (key %d of %d): %s", index + 1, len(keys), exc
+                    )
+            if round_index < MAX_RETRIES:
+                delay = BACKOFF_BASE * (2**round_index)
+                LOGGER.warning("Every key failed - waiting %.1fs", delay)
                 time.sleep(delay)
         raise CloudError(f"Gemini could not be reached: {last_error}")
 
-    def _call_once(self, prompt: str, image_bytes: bytes | None, mime_type: str) -> str:
+    def _call_once(
+        self, prompt: str, image_bytes: bytes | None, mime_type: str, key: str = ""
+    ) -> str:
         from google.genai import types
 
-        client = self._client_or_create()
+        client = self._client_or_create(key or self.api_key)
         parts: list[Any] = [types.Part.from_text(text=prompt)]
         if image_bytes:
             parts.append(types.Part.from_bytes(data=image_bytes, mime_type=mime_type))

@@ -101,4 +101,48 @@ class ServiceState:
         return self.status in ("starting", "running")
 
 
-__all__ = ["SERVICE_NAME", "STATUSES", "ServiceState"]
+#: The name of the file that asks the service to stop.
+STOP_FILE_NAME = "stop_request"
+
+
+def stop_request_path(state_file: str | Path) -> Path:
+    """Where the stop request is written."""
+    return Path(state_file).with_name(STOP_FILE_NAME)
+
+
+def write_stop_request(state_file: str | Path) -> Path:
+    """Ask the background service to stop.
+
+    The file is written atomically, so the service never reads half of it.
+    """
+    target = stop_request_path(state_file)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary = target.with_name(target.name + ".tmp")
+    temporary.write_text(str(time.time()), encoding="utf-8")
+    os.replace(temporary, target)
+    return target
+
+
+def read_stop_request(state_file: str | Path) -> bool:
+    """``True`` when the service was asked to stop."""
+    return stop_request_path(state_file).is_file()
+
+
+def clear_stop_request(state_file: str | Path) -> None:
+    """Take the stop request away (the service has done it)."""
+    try:
+        stop_request_path(state_file).unlink()
+    except OSError:
+        pass
+
+
+__all__ = [
+    "SERVICE_NAME",
+    "STATUSES",
+    "STOP_FILE_NAME",
+    "ServiceState",
+    "clear_stop_request",
+    "read_stop_request",
+    "stop_request_path",
+    "write_stop_request",
+]

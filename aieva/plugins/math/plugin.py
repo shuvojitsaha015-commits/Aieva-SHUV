@@ -78,12 +78,43 @@ class MathPlugin(SubjectPlugin):
 
     # ------------------------------------------------------------- visualize
     def visualize(self, parsed_input: ParsedInput, **opts: Any) -> VisualizationResult:
-        """Produce a figure for the parsed problem."""
+        """Produce a figure for the parsed problem.
+
+        A table of values is drawn as a chart - the renderer is in the core,
+        so physics and chemistry can draw their tables the same way.
+        """
         from aieva.plugins.math.equations import visualize_parsed
 
+        # a table of values is not an expression - it is looked for first
+        chart = self._chart_of(parsed_input)
+        if chart is not None:
+            return chart
         if parsed_input.sympy_expr is None:
             parsed_input = self.parse(parsed_input)
         return visualize_parsed(parsed_input, **opts)
+
+    @staticmethod
+    def _chart_of(parsed_input: ParsedInput) -> Any:
+        """The chart of a table (``None`` when the input is not a table)."""
+        raw = str(getattr(parsed_input, "raw", "") or "")
+        if not raw:
+            return None
+        from aieva.core.charts import chart_figure, parse_table
+
+        data = parse_table(raw)
+        if data is None:
+            return None
+        try:
+            figure = chart_figure(data)
+        except ValueError:
+            return None
+        from aieva.core.models import VisualizationResult
+
+        return VisualizationResult(
+            figure=figure,
+            parameters=[],
+            meta={"kind": "chart", "chart_kind": data.kind, "title": data.title},
+        )
 
     def create_session(self, parsed_input: ParsedInput, **opts: Any) -> Any:
         """Return a :class:`~aieva.plugins.math.equations.PlotSession`."""

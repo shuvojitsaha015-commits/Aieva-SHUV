@@ -23,6 +23,10 @@ class WhiteboardScreen(Screen):
     on_request_plot: Callable[[str, str], None] | None = None
     #: Called with the exported image when the user asks to solve the board.
     on_request_solve: Callable[[Any], None] | None = None
+    #: Called with the exported image when the user asks to read the board.
+    on_request_read: Callable[[Any], None] | None = None
+    #: Called with the exported image every time the writing changes.
+    on_canvas_changed: Callable[[Any], None] | None = None
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
@@ -105,6 +109,18 @@ class WhiteboardScreen(Screen):
         undo_button.bind(on_release=lambda _b: self.whiteboard.undo())
         tools.add_widget(undo_button)
 
+        read_button = Button(
+            text="Read the board",
+            size_hint_x=None,
+            width=dp(150),
+            background_normal="",
+            background_color=theme.ACCENT,
+            color=theme.TEXT,
+            font_size=theme.sp_size(14),
+        )
+        read_button.bind(on_release=lambda _b: self._request_read())
+        tools.add_widget(read_button)
+
         solve_button = Button(
             text="Solve board",
             size_hint_x=None,
@@ -120,6 +136,9 @@ class WhiteboardScreen(Screen):
         root.add_widget(tools)
 
         self.whiteboard = Whiteboard()
+        # Every change of the writing reaches the application - the
+        # background service has to know that the board has something new.
+        self.whiteboard.on_change = self._on_widget_changed
         root.add_widget(self.whiteboard)
 
         self.input_bar = InputBar()
@@ -139,6 +158,27 @@ class WhiteboardScreen(Screen):
     def _request_solve(self) -> None:
         if self.on_request_solve is not None:
             self.on_request_solve(self.whiteboard.export_to_image())
+
+    def _request_read(self) -> None:
+        """The teacher taps 'Read the board' - the writing is read now."""
+        image = self.whiteboard.export_to_image()
+        if self.on_request_read is not None:
+            self.on_request_read(image)
+        self._announce_change(image)
+
+    def _announce_change(self, image: Any) -> None:
+        """Tell the application that the board has changed."""
+        if self.on_canvas_changed is not None:
+            self.on_canvas_changed(image)
+
+    def _on_widget_changed(self) -> None:
+        """The writing on the canvas changed."""
+        self._announce_change(self.whiteboard.export_to_image())
+
+    def notify_change(self) -> None:
+        """The writing changed - the background service has to know."""
+        if self.on_canvas_changed is not None:
+            self.on_canvas_changed(self.whiteboard.export_to_image())
 
     def _on_submitted(self, text: str, kind: str) -> None:
         if self.on_request_plot is not None:

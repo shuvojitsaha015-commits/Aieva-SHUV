@@ -1,7 +1,7 @@
 """Image pre-processing for the OCR pipeline.
 
 Only Pillow and NumPy are used - no OpenCV - so the same code runs on a weak
-Android board (see ADR-003 and the Phase 11 notes).
+Windows computer (the picture of the screen).
 
 The steps are the classic ones:
 

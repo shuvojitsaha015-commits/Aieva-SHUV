@@ -17,3 +17,5 @@ requests
 python-dotenv
 pydantic
 httpx
+# The icon of Aieva in the system tray of Windows.
+pystray

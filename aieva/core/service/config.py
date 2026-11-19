@@ -94,6 +94,8 @@ class ServiceConfig:
     overlay_seconds: float = 8.0
     #: Use the mock OCR (no cloud, no key - for the tests and the demo).
     mock_ocr: bool = False
+    #: The keys that read the board on the spot (``f8`` by default).
+    hotkey: tuple[str, ...] = ("f8",)
     #: How many readings are kept in the history.
     keep_history: int = 200
 
@@ -115,6 +117,8 @@ class ServiceConfig:
         set_(self, "overlay", bool(self.overlay))
         set_(self, "overlay_seconds", max(1.0, _as_float(self.overlay_seconds, 8.0)))
         set_(self, "mock_ocr", bool(self.mock_ocr))
+        keys = tuple(key.strip().lower() for key in self.hotkey if str(key).strip())
+        set_(self, "hotkey", keys)
         set_(self, "keep_history", max(1, _as_int(self.keep_history, 200)))
         set_(self, "server_timeout", max(1.0, _as_float(self.server_timeout, 30.0)))
         set_(self, "folder", Path(self.folder))
@@ -143,9 +147,14 @@ class ServiceConfig:
             log_file=src.get("AIEVA_LOG_FILE", "aieva.log"),
             auto_solve=_as_bool(src.get("AIEVA_SERVICE_SOLVE"), True),
             auto_plot=_as_bool(src.get("AIEVA_SERVICE_PLOT"), True),
-            overlay=_as_bool(src.get("AIEVA_SERVICE_OVERLAY"), False),
+            overlay=_as_bool(src.get("AIEVA_SERVICE_OVERLAY"), True),
             overlay_seconds=_as_float(src.get("AIEVA_SERVICE_OVERLAY_SECONDS"), 8.0),
             mock_ocr=_as_bool(src.get("AIEVA_SERVICE_MOCK"), False),
+            hotkey=tuple(
+                key.strip().lower()
+                for key in src.get("AIEVA_SERVICE_HOTKEY", "f8").split(",")
+                if key.strip()
+            ),
             keep_history=_as_int(src.get("AIEVA_SERVICE_HISTORY"), 200),
             server_url=src.get("AIEVA_SERVER_URL", "http://127.0.0.1:8000"),
             server_api_key=src.get("AIEVA_SERVER_KEY", ""),

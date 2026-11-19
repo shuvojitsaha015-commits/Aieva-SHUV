@@ -20,7 +20,7 @@ include = ["aieva*", "server*"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-extend-exclude = ["build", "dist", ".buildozer", ".aieva_cache"]
+extend-exclude = ["build", "dist", ".buildozer", ".aieva_cache", "APK-LATER"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM", "C4"]
@@ -41,7 +41,7 @@ known-first-party = ["aieva", "server"]
 [tool.black]
 line-length = 100
 target-version = ["py311"]
-extend-exclude = "build|dist|.buildozer"
+extend-exclude = "build|dist|.buildozer|APK-LATER"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

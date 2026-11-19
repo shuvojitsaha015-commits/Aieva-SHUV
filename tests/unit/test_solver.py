@@ -91,9 +91,19 @@ def test_equation_with_a_fraction() -> None:
 
 
 def test_equation_with_functions() -> None:
-    # SymPy cannot solve every transcendental equation - that is reported
-    with pytest.raises(SolveError):
-        _answer("sin(x) = 0")
+    # SymPy has no closed form for sin(x) = 0 - the root is found numerically
+    answer = _answer("sin(x) = 0")
+    assert "0" in answer
+
+
+def test_a_transcendental_equation_is_solved_numerically() -> None:
+    answer = _answer("sin(x) = 0.5")
+    assert "0.52" in answer or "0.523" in answer
+
+
+def test_a_cosine_equation_is_solved_numerically() -> None:
+    answer = _answer("cos(x) = 1")
+    assert "2*pi" in answer or "0" in answer
 
 
 def test_system_of_two_equations() -> None:

@@ -16,13 +16,14 @@ read once.
 from __future__ import annotations
 
 import logging
-import re
+import time
 from collections.abc import Sequence
 
 from PIL import Image
 
 from aieva.core.cache import DiskCache
-from aieva.core.ocr.engines import OcrEngine, OcrResult
+from aieva.core.ocr.engines import OcrEngine, OcrResult, default_engines
+from aieva.core.ocr.normalize import looks_like_math, normalize_math_text
 from aieva.core.ocr.preprocess import PreprocessOptions, image_hash, preprocess
 from aieva.core.timing import timed
 
@@ -30,23 +31,6 @@ LOGGER = logging.getLogger(__name__)
 
 #: The cache namespace of the OCR results.
 CACHE_NAMESPACE = "ocr"
-
-#: A text only counts as mathematics when it has a number, an operator or a
-#: function in it - otherwise every word would be a product of letters.
-_MEANINGFUL_RE = re.compile(
-    r"[0-9]|[+\-*/^()]|\b(sin|cos|tan|cot|sec|csc|asin|acos|atan|sinh|cosh|tanh"
-    r"|exp|log|ln|sqrt|abs|pi|e)\b"
-)
-
-
-def looks_like_math(text: str) -> bool:
-    """``True`` when the text can be a formula (and not a sentence)."""
-    stripped = (text or "").strip()
-    if not stripped:
-        return False
-    if re.fullmatch(r"[A-Za-z]", stripped):
-        return True
-    return bool(_MEANINGFUL_RE.search(stripped))
 
 
 class OcrPipeline:
@@ -58,15 +42,16 @@ class OcrPipeline:
         cache: DiskCache | None = None,
         preprocess_options: PreprocessOptions | None = None,
         use_cache: bool = True,
+        engine_cooldown: float = 60.0,
     ) -> None:
-        if engines is None:
-            from aieva.core.ocr.engines import GeminiOcr, ManualOcr
-
-            engines = [GeminiOcr(), ManualOcr()]
-        self.engines: list[OcrEngine] = list(engines)
+        self.engines: list[OcrEngine] = list(engines) if engines is not None else default_engines()
         self.cache = cache if cache is not None else DiskCache()
         self.options = preprocess_options or PreprocessOptions()
         self.use_cache = use_cache
+        #: An engine that failed is skipped for this many seconds - the
+        #: board keeps working with the next engine instead of waiting.
+        self.engine_cooldown = max(0.0, float(engine_cooldown))
+        self._failed_until: dict[str, float] = {}
 
     # ------------------------------------------------------------------ api
     def run(self, image: Image.Image, use_cache: bool | None = None) -> OcrResult:
@@ -91,14 +76,20 @@ class OcrPipeline:
         for engine in self.engines:
             if not engine.available():
                 continue
+            if self._is_cooling_down(engine.name):
+                LOGGER.debug("The OCR engine %s is cooling down", engine.name)
+                continue
             try:
                 result = engine.recognize(prepared)
             except Exception as exc:  # noqa: BLE001 - an engine may be unavailable
+                self._cool_down(engine.name)
                 LOGGER.warning("OCR engine %s failed: %s", engine.name, exc)
                 errors.append(f"{engine.name}: {exc}")
                 continue
             if result.is_empty:
                 continue
+            result.latex = normalize_math_text(result.latex)
+            result.plain = normalize_math_text(result.plain)
             if best is None:
                 best = result
             if self._is_valid(result):
@@ -130,6 +121,20 @@ class OcrPipeline:
         )
 
     # ------------------------------------------------------------ internals
+    def _cool_down(self, name: str) -> None:
+        """An engine that failed is skipped for a while."""
+        self._failed_until[name] = time.monotonic() + self.engine_cooldown
+
+    def _is_cooling_down(self, name: str) -> bool:
+        """Is the engine still in its cooling time?"""
+        until = self._failed_until.get(name)
+        if until is None:
+            return False
+        if time.monotonic() >= until:
+            self._failed_until.pop(name, None)
+            return False
+        return True
+
     @staticmethod
     def _is_valid(result: OcrResult) -> bool:
         """Can SymPy read the answer?"""
@@ -157,4 +162,4 @@ class OcrPipeline:
         return False
 
 
-__all__ = ["CACHE_NAMESPACE", "OcrPipeline"]
+__all__ = ["CACHE_NAMESPACE", "OcrPipeline", "looks_like_math"]

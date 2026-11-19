@@ -144,6 +144,13 @@ def build_inequality(operator: str, left: str, right: str) -> Any:
 
 
 # ----------------------------------------------------------------- the answers
+#: The domain the numeric fallback looks at (-10 ... 10).
+NUMERIC_DOMAIN = (-10.0, 10.0)
+
+#: How fine the numeric fallback looks.
+NUMERIC_POINTS = 2000
+
+
 def _solve_equation(expression: sympy.Basic) -> sympy.Basic:
     equation = (
         sympy.Eq(expression.lhs, expression.rhs)
@@ -151,11 +158,114 @@ def _solve_equation(expression: sympy.Basic) -> sympy.Basic:
         else expression
     )
     if isinstance(equation, sympy.Equality):
-        solutions = sympy.solve(equation, sympy.Symbol("x"))
+        try:
+            solutions = sympy.solve(equation, sympy.Symbol("x"))
+        except (NotImplementedError, ValueError, TypeError):
+            solutions = []
         if not solutions:
-            solutions = sympy.solveset(equation.lhs - equation.rhs, sympy.Symbol("x"))
+            try:
+                solutions = sympy.solveset(equation.lhs - equation.rhs, sympy.Symbol("x"))
+            except (NotImplementedError, ValueError, TypeError):
+                solutions = []
+        if _is_open_set(solutions):
+            # SymPy has no closed form (a ConditionSet) - the roots are
+            # looked for numerically.
+            numeric = _numeric_roots(equation.lhs - equation.rhs)
+            if numeric:
+                return numeric
         return solutions
-    return sympy.solve(expression, sympy.Symbol("x"))
+    try:
+        return sympy.solve(expression, sympy.Symbol("x"))
+    except (NotImplementedError, ValueError, TypeError):
+        numeric = _numeric_roots(expression)
+        if numeric:
+            return numeric
+        raise
+
+
+def _is_open_set(solutions: Any) -> bool:
+    """Does SymPy answer with a set instead of the roots?
+
+    A ``ConditionSet`` means "there are solutions, but not in a closed form" -
+    the numeric fallback is used for it.
+    """
+    if not solutions:
+        return True
+    if isinstance(solutions, sympy.Set):
+        return isinstance(solutions, sympy.ConditionSet) or solutions is sympy.S.EmptySet
+    if isinstance(solutions, (list, tuple)):
+        return any(isinstance(item, sympy.ConditionSet) for item in solutions)
+    return False
+
+
+def _numeric_roots(expression: Any) -> list[Any]:
+    """The roots of an equation, found numerically.
+
+    The equation is scanned on a grid of the default domain; every sign
+    change is refined with a bisection. The answer is exact enough for the
+    board and it is marked as a numeric one.
+    """
+    variable = sympy.Symbol("x")
+    if variable not in expression.free_symbols:
+        candidates = sorted(expression.free_symbols, key=lambda s: s.name)
+        if not candidates:
+            return []
+        variable = candidates[0]
+
+    function = sympy.lambdify(variable, expression, "math")
+    low, high = NUMERIC_DOMAIN
+    steps = NUMERIC_POINTS
+    roots: list[Any] = []
+
+    def value(point: float) -> float | None:
+        try:
+            result = float(function(point))
+        except (TypeError, ValueError, ZeroDivisionError, OverflowError):
+            return None
+        if result != result or result in (float("inf"), float("-inf")):
+            return None
+        return result
+
+    previous_x = low
+    previous_y = value(previous_x)
+    for index in range(1, steps + 1):
+        current_x = low + (high - low) * index / steps
+        current_y = value(current_x)
+        if current_y is None or previous_y is None:
+            previous_x, previous_y = current_x, current_y
+            continue
+        if previous_y == 0.0:
+            root = previous_x
+        elif current_y == 0.0:
+            root = current_x
+        elif previous_y * current_y < 0:
+            root = _bisect(function, previous_x, current_x, previous_y)
+        else:
+            previous_x, previous_y = current_x, current_y
+            continue
+        if root is not None and all(abs(root - other) > 1e-6 for other in roots):
+            roots.append(root)
+        previous_x, previous_y = current_x, current_y
+
+    return [sympy.Float(root, 10) for root in roots]
+
+
+def _bisect(function: Any, low: float, high: float, low_value: float) -> float | None:
+    """Find the root between two points (the sign changes there)."""
+    for _ in range(60):
+        middle = (low + high) / 2.0
+        try:
+            middle_value = float(function(middle))
+        except (TypeError, ValueError, ZeroDivisionError, OverflowError):
+            return None
+        if middle_value == 0.0:
+            return middle
+        if low_value * middle_value < 0:
+            high = middle
+        else:
+            low = middle
+            low_value = middle_value
+    return (low + high) / 2.0
 
 
 def _solve_inequality(expression: sympy.Basic) -> Any:
@@ -249,6 +359,21 @@ def _matrix_op(expression: Any) -> Any:
 
 
 # --------------------------------------------------------------------- steps
+def _how_many_solutions(discriminant: Any) -> str:
+    """How many real solutions the discriminant gives.
+
+    The discriminant can be a symbol (a circle has ``y`` in it) - then the
+    number cannot be counted, and the answer says so.
+    """
+    try:
+        if bool(discriminant > 0):
+            return "two real solutions"
+        return "no real solution"
+    except TypeError:
+        # a symbolic discriminant - the number cannot be counted
+        return "the number of real solutions depends on the other variable"
+
+
 def _steps_for_equation(equation: sympy.Equality) -> list[Step]:
     """The deterministic skeleton of a linear / quadratic solution."""
     steps: list[Step] = []
@@ -269,7 +394,11 @@ def _steps_for_equation(equation: sympy.Equality) -> list[Step]:
         )
     )
 
-    polynomial = sympy.Poly(moved, variable) if moved.free_symbols else None
+    try:
+        polynomial = sympy.Poly(moved, variable) if moved.free_symbols else None
+    except sympy.PolynomialError:
+        # sin(x) = 0.5 is no polynomial - the algebraic steps do not apply
+        polynomial = None
     if polynomial is not None and polynomial.degree() == 2:
         a, b, c = polynomial.all_coeffs()
         discriminant = sympy.discriminant(moved, variable)
@@ -278,7 +407,7 @@ def _steps_for_equation(equation: sympy.Equality) -> list[Step]:
                 title="Use the quadratic formula",
                 explanation=(
                     f"The discriminant is {sympy.latex(discriminant)}, so there are "
-                    f"{'two' if discriminant > 0 else 'no'} real solution(s)."
+                    f"{_how_many_solutions(discriminant)}."
                 ),
                 latex=(
                     f"x = \\frac{{{sympy.latex(-b)} \\pm \\sqrt{{{sympy.latex(discriminant)}}}}}"
@@ -293,6 +422,17 @@ def _steps_for_equation(equation: sympy.Equality) -> list[Step]:
                 title="Isolate the variable",
                 explanation=f"Divide by the coefficient {sympy.latex(a)}.",
                 latex=f"x = {sympy.latex(-b / a)}",
+            )
+        )
+    elif polynomial is None and moved.free_symbols:
+        steps.append(
+            Step(
+                title="Find the root numerically",
+                explanation=(
+                    "The equation has no closed form - the root is searched over "
+                    f"the interval [{NUMERIC_DOMAIN[0]:g}, {NUMERIC_DOMAIN[1]:g}]."
+                ),
+                latex=sympy.latex(moved) + " = 0",
             )
         )
     return steps

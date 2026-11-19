@@ -3,11 +3,10 @@
 The service needs a picture of the board, over and over again:
 
 * :class:`~aieva.core.ocr.capture.DesktopScreenSource` - the screen of the
-  board computer (the normal case on an Android smart board that runs
-  Windows, and on a development laptop);
-* :class:`FolderSource` - the newest picture of a folder. An Android board
-  that shares its screen (or a document camera) drops the pictures there, so
-  the service works even without a screen capture.
+  computer (the normal case: Aieva reads the screen of the board);
+* :class:`FolderSource` - the newest picture of a folder. The canvas of the
+  application is published there, so the service works without a screen
+  capture.
 
 Both return the same :class:`~aieva.core.ocr.capture.Capture`, so the rest
 of the service does not care where the picture comes from.
@@ -56,8 +55,36 @@ class FolderSource(ScreenSource):
         if not pictures:
             raise NothingToCapture(f"There is no picture in {self.folder}")
         newest = max(pictures, key=lambda path: path.stat().st_mtime)
-        with Image.open(newest) as image:
-            loaded = image.convert("RGB")
+        try:
+            with Image.open(newest) as image:
+                loaded = image.convert("RGB")
+        except (OSError, ValueError) as exc:
+            # a picture that is broken (or still being written) must not stop
+            # the service - the next one is used
+            LOGGER.info("The picture %s could not be read: %s", newest.name, exc)
+            broken = [path for path in pictures if path != newest]
+            if not broken:
+                raise NothingToCapture(f"There is no picture in {self.folder}") from exc
+            return self._grab_from(broken)
+        return Capture(
+            image=loaded,
+            box=(0, 0, loaded.width, loaded.height),
+            source=self.name,
+            meta={"file": str(newest)},
+        )
+
+    def _grab_from(self, pictures: list[Path]) -> Capture:
+        # The newest picture of the list that can be read.
+        newest = max(pictures, key=lambda path: path.stat().st_mtime)
+        try:
+            with Image.open(newest) as image:
+                loaded = image.convert("RGB")
+        except (OSError, ValueError) as exc:
+            LOGGER.info("The picture %s could not be read: %s", newest.name, exc)
+            others = [path for path in pictures if path != newest]
+            if not others:
+                raise NothingToCapture(f"There is no picture in {self.folder}") from exc
+            return self._grab_from(others)
         return Capture(
             image=loaded,
             box=(0, 0, loaded.width, loaded.height),

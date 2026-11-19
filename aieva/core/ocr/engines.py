@@ -7,9 +7,9 @@ the configured order and the first result that SymPy can parse wins - see
 Engines shipped in v1:
 
 * :class:`GeminiOcr` - asks the fog server (Gemini Vision) for the LaTeX.
+  **This is the engine of Aieva** - Gemini reads the board.
 * :class:`ManualOcr` - the user types the expression (the escape hatch).
-* :class:`Pix2TextOcr` - optional, only used when the package is installed.
-* :class:`MockOcr` - canned answers, used by the tests and by the demo mode.
+* :class:`MockOcr` - canned answers, used by the tests.
 """
 
 from __future__ import annotations
@@ -27,6 +27,13 @@ from aieva.core.errors import OcrError
 #: The kinds of content the OCR can report.
 RESULT_KINDS = ("expression", "equation", "text", "unknown")
 
+#: What should be done with the problem the model read.
+#:
+#: ``solve`` - the answer is wanted, ``graph`` - the picture is wanted,
+#: ``both`` - the answer *and* the picture, ``none`` - there is no
+#: mathematics on the board.
+INTENTS = ("solve", "graph", "both", "none")
+
 
 @dataclass
 class OcrResult:
@@ -37,6 +44,10 @@ class OcrResult:
     confidence_note: str = ""
     kind: str = "unknown"
     engine: str = ""
+    #: What should be done with the problem (``""`` when the model did not say).
+    intent: str = ""
+    #: The table of values the model read (``None`` when there is no table).
+    chart: dict[str, Any] | None = None
     #: ``True`` when the user has to confirm / correct the result.
     needs_manual_input: bool = False
     raw: dict[str, Any] = field(default_factory=dict)
@@ -52,9 +63,19 @@ class OcrResult:
     def from_dict(cls, payload: dict[str, Any]) -> OcrResult:
         known = {
             key: payload.get(key)
-            for key in ("latex", "plain", "confidence_note", "kind", "engine", "needs_manual_input")
+            for key in (
+                "latex",
+                "plain",
+                "confidence_note",
+                "kind",
+                "engine",
+                "intent",
+                "needs_manual_input",
+            )
         }
         known["raw"] = payload.get("raw") or {}
+        chart = payload.get("chart")
+        known["chart"] = chart if isinstance(chart, dict) else None
         return cls(**known)  # type: ignore[arg-type]
 
 
@@ -162,52 +183,42 @@ class GeminiOcr(OcrEngine):
             confidence_note=payload.get("confidence_note", ""),
             kind=payload.get("kind", "unknown"),
             engine=self.name,
+            intent=str(payload.get("intent", "") or "").strip().lower(),
+            chart=_chart_of(payload.get("chart")),
             raw=payload,
         )
 
 
-class Pix2TextOcr(OcrEngine):
-    """Optional local OCR (only used when the package is installed)."""
+def _chart_of(value: Any) -> dict[str, Any] | None:
+    """The table of values the model read (``None`` when there is none)."""
+    if not isinstance(value, dict):
+        return None
+    from aieva.core.charts import ChartData
 
-    name = "pix2text"
+    data = ChartData.from_dict(value)
+    return None if data.is_empty() else data.to_dict()
 
-    def __init__(self, model: Any = None) -> None:
-        self._model = model
 
-    def available(self) -> bool:
-        if self._model is not None:
-            return True
-        try:  # pragma: no cover - the package is optional
-            import pix2text  # noqa: F401
-        except Exception:  # noqa: BLE001
-            return False
-        return True
+def default_engines() -> list[OcrEngine]:
+    """The engines of the board.
 
-    def recognize(self, image: Image.Image) -> OcrResult:
-        if not self.available():
-            raise OcrError("Pix2Text is not installed")
-        try:  # pragma: no cover - the package is optional
-            from pix2text.cli import run_ocr
+    **Gemini is the core of Aieva.** The board is read through the fog
+    server (the network is needed - there is no offline version), and the
+    answer is checked with SymPy before it is shown.
 
-            text = run_ocr([image], do_beam_search=False)
-        except Exception as exc:  # noqa: BLE001
-            raise OcrError(f"Pix2Text failed: {exc}") from exc
-        text = (text or "").strip()
-        return OcrResult(
-            latex=text,
-            plain=text,
-            confidence_note="read locally with Pix2Text",
-            kind="expression" if "=" not in text else "equation",
-            engine=self.name,
-        )
+    The list exists so that a second engine can be added later without
+    changing the pipeline.
+    """
+    return [GeminiOcr()]
 
 
 __all__ = [
+    "INTENTS",
     "GeminiOcr",
     "ManualOcr",
     "MockOcr",
     "OcrEngine",
     "OcrResult",
-    "Pix2TextOcr",
     "RESULT_KINDS",
+    "default_engines",
 ]

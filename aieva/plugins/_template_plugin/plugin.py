@@ -22,7 +22,8 @@ The rules for every plugin:
   and the parameters for the sliders) or a
   :class:`~aieva.core.models.SolveResult` (the answer and the steps).
 
-The full walk-through is in ``docs/ADDING_A_SUBJECT.md``.
+The walk-through is in the documentation of the project
+(``README.md`` and ``shuvojit.md``).
 """
 
 from __future__ import annotations

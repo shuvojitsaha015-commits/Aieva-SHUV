@@ -33,6 +33,8 @@ class HomeScreen(Screen):
     on_request_plot: Callable[[str, str], None] | None = None
     #: Called with the subject name when the user picks another subject.
     on_subject_changed: Callable[[str], None] | None = None
+    #: Called when the teacher taps the lens (read what is on the board).
+    on_scan_board: Callable[[], None] | None = None
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
@@ -145,6 +147,20 @@ class HomeScreen(Screen):
         titles.add_widget(self.subject_label)
         hero.add_widget(titles)
 
+        # The lens of the board: one tap and the board is read.
+        self.scan_button = Button(
+            text="Scan the board",
+            size_hint_x=None,
+            width=dp(170),
+            height=dp(44),
+            background_normal="",
+            background_color=theme.PRIMARY,
+            color=theme.TEXT,
+            font_size=theme.sp_size(15),
+        )
+        self.scan_button.bind(on_release=lambda _b: self.scan_board())
+        hero.add_widget(self.scan_button)
+
         self.subject_row = BoxLayout(
             orientation="horizontal",
             size_hint_x=None,
@@ -226,6 +242,11 @@ class HomeScreen(Screen):
     def focus_input(self) -> None:
         """Focus the manual input (the 'Type an equation' card)."""
         self.input_bar.text_input.focus = True
+
+    def scan_board(self) -> None:
+        """The teacher tapped the lens - read what is on the board."""
+        if self.on_scan_board is not None:
+            self.on_scan_board()
 
     def refresh_history(self) -> None:
         """Rebuild the history list from :class:`~aieva.core.history.History`."""

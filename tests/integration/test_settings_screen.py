@@ -153,3 +153,11 @@ def test_a_plot_canvas_without_a_figure_is_empty() -> None:
     assert canvas.figure is None
     assert not canvas.children
     canvas.draw_idle()
+
+
+def test_the_computer_can_be_checked(screen) -> None:
+    """The teacher asks whether this computer can read the board."""
+    actions: list[str] = []
+    screen.on_service_action = actions.append
+    screen._service_action("check")
+    assert actions == ["check"]
