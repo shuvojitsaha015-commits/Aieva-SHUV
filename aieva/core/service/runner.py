@@ -167,7 +167,6 @@ class BackgroundService:
         LOGGER.info("The background service watches the board every %s s", self.config.poll_seconds)
         while not self._stop.is_set():
             if read_stop_request(self.config.state_file):
-                # the tray (or a script) asked the service to stop
                 clear_stop_request(self.config.state_file)
                 LOGGER.info("The service was asked to stop")
                 break
@@ -177,12 +176,7 @@ class BackgroundService:
                     clear_request(self.config.state_file)
                     run = self.scan_now(_region_of(request))
                     LOGGER.info("The board was read on request: %s", run.plain or run.latex)
-                    self._stop.wait(self.config.poll_seconds)
-                    continue
-                run = self.run_once()
-                if run.ran:
-                    LOGGER.info("The board was read: %s", run.plain or run.latex)
-            except Exception as exc:  # noqa: BLE001 - the service must survive
+            except Exception as exc:
                 self.state.errors += 1
                 self.state.last_error = str(exc)
                 self.state.status = "error"
@@ -203,6 +197,10 @@ class BackgroundService:
             capture = source.grab()
         except NothingToCapture as exc:
             return ServiceRun(ran=False, reason=str(exc))
+        except RuntimeError as exc:
+            if "could not be captured" in str(exc):
+                return ServiceRun(ran=False, reason=str(exc))
+            raise
         image = capture.image
         if not self.trigger.should_run(image, self._clock()):
             return ServiceRun(ran=False, reason="the board did not change")

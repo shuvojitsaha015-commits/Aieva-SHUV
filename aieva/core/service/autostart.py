@@ -63,6 +63,8 @@ def startup_script_text(python_exe: str, project_dir: str, extra_args: str = "")
         "@echo off\r\n"
         "rem Aieva - it starts with the computer\r\n"
         f'cd /d "{project_dir}"\r\n'
+        f'start "" "{python_exe}" -m uvicorn server.main:app --host 127.0.0.1 --port 8000\r\n'
+        "timeout /t 3 /nobreak >nul\r\n"
         f'start "" "{python_exe}"{arguments}\r\n'
     )
 
@@ -140,6 +142,8 @@ def launcher_text(
         "@echo off\r\n",
         "rem Aieva - the background service of the smart board\r\n",
         f'cd /d "{project_dir}"\r\n',
+        f'start "" "{python_exe}" -m uvicorn server.main:app --host 127.0.0.1 --port 8000\r\n',
+        "timeout /t 3 /nobreak >nul\r\n",
     ]
     if with_tray and "--tray" not in arguments:
         arguments = f"{arguments} --tray"

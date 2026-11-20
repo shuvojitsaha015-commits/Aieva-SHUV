@@ -15,6 +15,7 @@ import argparse
 import json
 import logging
 import logging.handlers
+import os
 import signal
 import subprocess
 import sys
@@ -107,10 +108,13 @@ def _start_overlay(config: ServiceConfig) -> None:
         "--state-file",
         str(config.state_file),
     ]
+    env = dict(os.environ)
+    env["KIVY_NO_ARGS"] = "1"
     try:
         subprocess.Popen(
             command,
             cwd=str(Path.cwd()),
+            env=env,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
@@ -152,8 +156,7 @@ def _run(config: ServiceConfig, args: argparse.Namespace) -> int:
     """The background application."""
     service = BackgroundService(config=config)
     _install_signals(service)
-    if config.overlay:
-        _start_overlay(config)
+    _start_overlay(config)
     if getattr(args, "tray", False):
         _start_tray(config)
     watcher: HotkeyWatcher | None = None
