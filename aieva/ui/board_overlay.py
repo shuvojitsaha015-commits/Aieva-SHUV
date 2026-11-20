@@ -521,16 +521,22 @@ def build_overlay_app() -> Any:
                 answer_latex = ""
                 steps: list[dict[str, Any]] = []
 
-                if text:
+                for candidate in (result.plain, result.latex):
+                    cand = (candidate or "").strip()
+                    if not cand:
+                        continue
                     try:
-                        c = classify(text)
-                        outcome = solve_expression(text, classification=c)
+                        c = classify(cand)
+                        outcome = solve_expression(cand, classification=c)
                         res = outcome.result
-                        answer = res.answer_text
-                        answer_latex = res.answer_latex
-                        steps = [s.to_dict() for s in res.steps]
+                        if res.answer_text or res.answer_latex:
+                            answer = res.answer_text or res.answer_latex
+                            answer_latex = res.answer_latex or res.answer_text
+                            gemini_steps = getattr(result, "steps", []) or []
+                            steps = gemini_steps if gemini_steps else [s.to_dict() for s in res.steps]
+                            break
                     except Exception as exc:
-                        LOGGER.info("SymPy solve fallback: %s", exc)
+                        LOGGER.info("Solve candidate '%s' failed: %s", cand, exc)
 
                 if not answer:
                     answer = getattr(result, "answer", "") or "Could not solve equation"
@@ -587,8 +593,13 @@ def build_overlay_app() -> Any:
 
         def _on_region_confirmed(self, region: tuple[int, int, int, int]) -> None:
             self._close_selector()
-            remember_region(self.state_file, region)
-            self._trigger_scan(region)
+            sw, sh = screen_dimensions()
+            left, y_min, right, y_max = region
+            screen_top = max(0, sh - y_max)
+            screen_bottom = min(sh, sh - y_min)
+            screen_region = (left, screen_top, right, screen_bottom)
+            remember_region(self.state_file, screen_region)
+            self._trigger_scan(screen_region)
 
         def _on_region_cancelled(self) -> None:
             self._close_selector()

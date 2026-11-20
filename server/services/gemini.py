@@ -115,6 +115,15 @@ MOCK_WORDPROBLEM = {
 }
 
 
+FALLBACK_MODELS: tuple[str, ...] = (
+    "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-lite",
+    "gemini-3.5-flash",
+    "gemini-3.6-flash",
+    "gemini-3.8-flash",
+)
+
+
 def is_transient(exc: BaseException) -> bool:
     """``True`` when the same call could work a moment later.
 
@@ -299,18 +308,38 @@ class GeminiService:
         parts: list[Any] = [types.Part.from_text(text=prompt)]
         if image_bytes:
             parts.append(types.Part.from_bytes(data=image_bytes, mime_type=mime_type))
-        response = client.models.generate_content(
-            model=self.model,
-            contents=parts,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                temperature=0.0,
-            ),
-        )
-        text = getattr(response, "text", None)
-        if not text:
-            raise CloudError("The model did not answer")
-        return str(text)
+
+        models_to_try = [self.model] + [m for m in FALLBACK_MODELS if m != self.model]
+        last_exc: Exception | None = None
+
+        for model_name in models_to_try:
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=parts,
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                        temperature=0.0,
+                    ),
+                )
+                text = getattr(response, "text", None)
+                if text:
+                    if model_name != self.model:
+                        LOGGER.info("Switched model from %s to %s", self.model, model_name)
+                        self.model = model_name
+                    return str(text)
+            except Exception as exc:
+                last_exc = exc
+                err_str = str(exc).lower()
+                # Check for quota exhaustion, high demand, or unavailable model to fallback
+                if any(k in err_str for k in ("429", "quota", "resource_exhausted", "503", "unavailable", "404", "not_found")):
+                    LOGGER.warning("Model %s failed (%s), trying next fallback...", model_name, exc)
+                    continue
+                raise
+
+        if last_exc:
+            raise last_exc
+        raise CloudError("The model did not answer")
 
 
 __all__ = [

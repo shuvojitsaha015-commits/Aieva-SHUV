@@ -59,7 +59,7 @@ class Settings:
     #: ``gemini_api_key``. Several keys mean more quota and a fallback
     #: that stays inside Gemini (see :mod:`server.services.gemini`).
     gemini_api_keys: tuple[str, ...] = ()
-    gemini_model: str = "gemini-3.8-flash"
+    gemini_model: str = "gemini-3.5-flash-lite"
     openai_api_key: str = ""
     wolfram_app_id: str = ""
 
@@ -129,7 +129,7 @@ def settings_from_env(env: dict[str, str] | None = None) -> Settings:
     return Settings(
         gemini_api_key=src.get("GEMINI_API_KEY", "").strip(),
         gemini_api_keys=_split_keys(src.get("GEMINI_API_KEYS", "")),
-        gemini_model=src.get("GEMINI_MODEL", "gemini-3.8-flash").strip() or "gemini-3.8-flash",
+        gemini_model=src.get("GEMINI_MODEL", "gemini-3.5-flash-lite").strip() or "gemini-3.5-flash-lite",
         openai_api_key=src.get("OPENAI_API_KEY", "").strip(),
         wolfram_app_id=src.get("WOLFRAM_APP_ID", "").strip(),
         server_url=(src.get("AIEVA_SERVER_URL", "").strip() or "http://127.0.0.1:8000"),

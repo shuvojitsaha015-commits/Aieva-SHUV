@@ -134,14 +134,25 @@ def split_command(text: str) -> tuple[str, str]:
         body = re.sub(r"(?:\\,?\s*|\s+)d[a-zA-Z]\s*$", "", body).strip()
         return "integrate", body
 
-    # 3. Functional integrate: integrate(expr, x) or integrate(expr, x, a, b)
+    # 3. Functional integrate: integrate(expr, x) or Integral(expr, x) or integrate(expr, (x, a, b))
+    m_int_tup = re.match(
+        r"^(?:integrate|Integral)\s*\(\s*(.*?)\s*,\s*\(\s*([a-zA-Z])\s*,\s*([^\)]+?)\s*,\s*([^\)]+?)\s*\)\s*\)$",
+        cleaned,
+        re.IGNORECASE,
+    )
+    if m_int_tup:
+        body = m_int_tup.group(1).strip()
+        return "definite_integral", body
+
     m_int_fn = re.match(
-        r"^integrate\s*\(\s*(.*?)(?:\s*,\s*([a-zA-Z])(?:\s*,\s*([^\)]+)\s*,\s*([^\)]+))?)?\s*\)$",
+        r"^(?:integrate|Integral)\s*\(\s*(.*?)(?:\s*,\s*([a-zA-Z])(?:\s*,\s*([^\)]+)\s*,\s*([^\)]+))?)?\s*\)$",
         cleaned,
         re.IGNORECASE,
     )
     if m_int_fn:
         body = m_int_fn.group(1).strip()
+        if m_int_fn.group(3) and m_int_fn.group(4):
+            return "definite_integral", body
         return "integrate", body
 
     # 4. Derivative: \frac{d}{dx} expr or d/dx expr
@@ -156,13 +167,23 @@ def split_command(text: str) -> tuple[str, str]:
 
     # 5. diff(expr, x) or diff(expr)
     m_diff_fn = re.match(
-        r"^diff\s*\(\s*(.*?)(?:\s*,\s*[a-zA-Z])?\s*\)$", cleaned, re.IGNORECASE
+        r"^(?:diff|Derivative)\s*\(\s*(.*?)(?:\s*,\s*[a-zA-Z])?\s*\)$", cleaned, re.IGNORECASE
     )
     if m_diff_fn:
         body = _clean_outer_parens(m_diff_fn.group(1))
         return "differentiate", body
 
-    # 6. Limit: \lim_{x \to 0} or lim x->0
+    # 6. Functional limit: limit(expr, x, point) or Limit(expr, x, point)
+    m_lim_fn = re.match(
+        r"^(?:limit|Limit)\s*\(\s*(.*?)\s*,\s*([a-zA-Z])\s*,\s*([^\)]+)\s*\)$",
+        cleaned,
+        re.IGNORECASE,
+    )
+    if m_lim_fn:
+        body = m_lim_fn.group(1).strip()
+        return "limit", body
+
+    # 7. Limit: \lim_{x \to 0} or lim x->0
     m_lim_tex = re.search(
         r"\\lim_\{?([a-zA-Z])\s*(?:\\to|->|→)\s*([^\}]+)\}?\s*(.*)$", cleaned
     )
@@ -347,6 +368,11 @@ def _solve_inequality(expression: sympy.Basic) -> Any:
 
 
 def _differentiate(expression: sympy.Basic) -> sympy.Basic:
+    if hasattr(expression, "doit") and isinstance(expression, sympy.Derivative):
+        try:
+            return expression.doit()
+        except Exception:
+            pass
     variable = sympy.Symbol("x")
     if isinstance(expression, sympy.Equality):
         expression = expression.rhs
@@ -358,18 +384,51 @@ def _differentiate(expression: sympy.Basic) -> sympy.Basic:
     return sympy.diff(expression, variable)
 
 
+def _parse_limit_val(val_str: str) -> Any:
+    cleaned = val_str.strip()
+    if cleaned in (r"\infty", "infty", "inf", "+inf", r"+\infty"):
+        return sympy.oo
+    if cleaned in (r"-\infty", "-infty", "-inf"):
+        return -sympy.oo
+    if "\\" in cleaned:
+        from aieva.core.latex_adapter import normalize_latex
+
+        try:
+            cleaned = normalize_latex(cleaned)
+        except Exception:
+            pass
+    try:
+        from aieva.core.safe_parse import parse_text_expression
+
+        return parse_text_expression(cleaned)
+    except Exception:
+        return sympy.sympify(cleaned.replace(r"\pi", "pi"))
+
+
 def _integrate(
-    expression: sympy.Basic, definite: bool, limits: tuple[float, float] | None = None, raw_text: str = ""
+    expression: sympy.Basic, definite: bool, limits: tuple[Any, Any] | None = None, raw_text: str = ""
 ) -> Any:
+    if hasattr(expression, "doit") and isinstance(expression, sympy.Integral):
+        try:
+            return expression.doit()
+        except Exception:
+            pass
     variable = sympy.Symbol("x")
     if isinstance(expression, sympy.Equality):
         expression = expression.rhs
     if definite:
         if limits is None:
+            found_tup = re.search(r"\(\s*[a-zA-Z]\s*,\s*([^\),]+)\s*,\s*([^\),]+)\s*\)", str(raw_text or expression))
+            if found_tup:
+                try:
+                    limits = (_parse_limit_val(found_tup.group(1)), _parse_limit_val(found_tup.group(2)))
+                except Exception:
+                    pass
+        if limits is None:
             found_tex = re.search(r"\\int_\{?([^\}^_]+)\}?\^\{?([^\}^_]+)\}?", str(raw_text or expression))
             if found_tex:
                 try:
-                    limits = (float(sympy.sympify(found_tex.group(1))), float(sympy.sympify(found_tex.group(2))))
+                    limits = (_parse_limit_val(found_tex.group(1)), _parse_limit_val(found_tex.group(2)))
                 except Exception:
                     pass
         if limits is None:
@@ -386,21 +445,34 @@ def _integrate(
     return sympy.integrate(expression, variable)
 
 
-def _limit(expression: sympy.Basic, point: float | None = None, raw_text: str = "") -> Any:
+def _limit(expression: sympy.Basic, point: Any = None, raw_text: str = "") -> Any:
+    if hasattr(expression, "doit") and isinstance(expression, sympy.Limit):
+        try:
+            return expression.doit()
+        except Exception:
+            pass
     variable = sympy.Symbol("x")
     if isinstance(expression, sympy.Equality):
         expression = expression.rhs
     if point is None:
-        match_tex = re.search(r"\\lim_\{?[a-zA-Z]\s*(?:\\to|->|→)\s*([^\}]+)\}?", str(raw_text or expression))
-        if match_tex:
+        match_fn = re.search(r"(?:limit|Limit)\s*\([^,]+,\s*[a-zA-Z]\s*,\s*([^\)]+)\)", str(raw_text or expression), re.IGNORECASE)
+        if match_fn:
             try:
-                point = float(sympy.sympify(match_tex.group(1)))
+                point = _parse_limit_val(match_fn.group(1))
             except Exception:
                 pass
     if point is None:
-        match = re.search(r"([a-zA-Z])\s*(?:->|→)\s*([0-9.]+)", str(raw_text or expression))
+        match_tex = re.search(r"\\lim_\{?[a-zA-Z]\s*(?:\\to|->|→)\s*([^\}]+)\}?", str(raw_text or expression))
+        if match_tex:
+            try:
+                point = _parse_limit_val(match_tex.group(1))
+            except Exception:
+                pass
+    if point is None:
+        match = re.search(r"([a-zA-Z])\s*(?:->|→)\s*([0-9.+-]+)", str(raw_text or expression))
         point = float(match.group(2)) if match else 0.0
-    point = sympy.Rational(str(point))
+    if not isinstance(point, sympy.Basic):
+        point = sympy.Rational(str(point))
     if variable not in expression.free_symbols:
         candidates = sorted(expression.free_symbols, key=lambda s: s.name)
         if not candidates:
@@ -626,6 +698,13 @@ def solve_expression(
             "simplify",
             "expand_factor",
         ):
+            if "\\" in body:
+                from aieva.core.latex_adapter import normalize_latex
+
+                try:
+                    body = normalize_latex(body)
+                except Exception:
+                    pass
             expression = parse_text_expression(body)
         elif problem_type == "equation_solve":
             expression = parse_equation(body if command else text)

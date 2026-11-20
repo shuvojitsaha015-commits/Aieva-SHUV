@@ -152,6 +152,13 @@ ALLOWED_NAMES: dict[str, Any] = {
     "oo": sympy.oo,
     "inf": sympy.oo,
     "nan": sympy.nan,
+    # calculus
+    "diff": sympy.diff,
+    "Derivative": sympy.Derivative,
+    "integrate": sympy.integrate,
+    "Integral": sympy.Integral,
+    "limit": sympy.limit,
+    "Limit": sympy.Limit,
 }
 
 #: Transformations used for every parse.

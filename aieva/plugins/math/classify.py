@@ -50,8 +50,8 @@ _WORD_HINTS = (
 )
 
 _MATRIX_RE = re.compile(r"\[\[.*\]\]")
-_INTEGRAL_RE = re.compile(r"\\int\b|\\int_|\bintegrate\b", re.IGNORECASE)
-_LIMIT_RE = re.compile(r"\\lim\b|\blimit\b|\blim\b", re.IGNORECASE)
+_INTEGRAL_RE = re.compile(r"\\int\b|\\int_|\bintegrate\b|\bintegral\b", re.IGNORECASE)
+_LIMIT_RE = re.compile(r"\\lim\b|\\lim_|\blimit\b|\blim\b", re.IGNORECASE)
 _DERIVATIVE_RE = re.compile(
     r"\\frac\s*\{d\}\s*\{d\w\}|\bd/d\w\b|\bdifferentiate\b|\bderivative\b|\bdiff\b", re.IGNORECASE
 )
@@ -91,7 +91,13 @@ def classify(text: str) -> Classification:
         return Classification("matrix_op", 0.9, "the input contains a matrix")
 
     if _INTEGRAL_RE.search(raw):
-        definite = bool(re.search(r"\\int\s*[_^]|\\int_[^{]*\^|\\int\s*\\d", raw))
+        definite = bool(
+            re.search(
+                r"\\int\s*[_^]|\\int_[^{]*\^|\\int\s*\\d|\bintegral\s*\([^,]+,\s*\([^,]+,\s*[^,]+,\s*[^,\)]+\)",
+                raw,
+                re.IGNORECASE,
+            )
+        )
         if definite or re.search(r"\d\s*(to|,)\s*\d", lowered):
             return Classification(
                 "definite_integral", 0.9, "the input contains a definite integral"

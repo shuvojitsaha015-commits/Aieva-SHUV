@@ -159,6 +159,21 @@ class OcrPipeline:
                 return True
             except Exception:  # noqa: BLE001 - any parse problem means "not valid"
                 continue
+
+        # Check with the solver for calculus (integrals, derivatives, limits):
+        try:
+            from aieva.plugins.math.solver import solve_expression
+
+            for text in (result.plain, result.latex):
+                text = (text or "").strip()
+                if not text:
+                    continue
+                outcome = solve_expression(text)
+                if outcome.result.answer_text or outcome.result.answer_latex:
+                    return True
+        except Exception:  # noqa: BLE001
+            pass
+
         return False
 
 
