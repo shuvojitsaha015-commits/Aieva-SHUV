@@ -48,6 +48,10 @@ class OcrResult:
     intent: str = ""
     #: The table of values the model read (``None`` when there is no table).
     chart: dict[str, Any] | None = None
+    #: Direct answer and steps from Gemini if available
+    answer: str = ""
+    answer_latex: str = ""
+    steps: list[dict[str, Any]] = field(default_factory=list)
     #: ``True`` when the user has to confirm / correct the result.
     needs_manual_input: bool = False
     raw: dict[str, Any] = field(default_factory=dict)
@@ -157,34 +161,52 @@ class GeminiOcr(OcrEngine):
         return bool(self.server_url)
 
     def recognize(self, image: Image.Image) -> OcrResult:
-        if not self.server_url:
-            raise OcrError("No OCR server configured")
         import httpx
 
         buffer = io.BytesIO()
         image.convert("RGB").save(buffer, format="PNG")
         headers = {"X-Aieva-Key": self.api_key} if self.api_key else {}
-        try:
-            response = httpx.post(
-                f"{self.server_url}/api/math/ocr",
-                files={"image": ("capture.png", buffer.getvalue(), "image/png")},
-                headers=headers,
-                timeout=self.timeout,
-            )
-            response.raise_for_status()
-            payload = response.json()
-        except httpx.HTTPError as exc:  # pragma: no cover - network error
-            raise OcrError(f"The OCR server could not be reached: {exc}") from exc
-        except json.JSONDecodeError as exc:  # pragma: no cover - bad answer
-            raise OcrError("The OCR server sent an answer that is not JSON") from exc
+        payload: dict[str, Any] | None = None
+
+        if self.server_url:
+            try:
+                response = httpx.post(
+                    f"{self.server_url}/api/math/ocr",
+                    files={"image": ("capture.png", buffer.getvalue(), "image/png")},
+                    headers=headers,
+                    timeout=min(self.timeout, 5.0),
+                )
+                if response.status_code == 200:
+                    payload = response.json()
+            except Exception as exc:
+                LOGGER.info("The OCR server at %s was not reachable: %s", self.server_url, exc)
+
+        if payload is None:
+            # Fall back directly to GeminiService in-process
+            try:
+                from aieva.core.llm.prompts import OCR_PROMPT
+                from server.services.gemini import GeminiService
+
+                service = GeminiService()
+                if service.available:
+                    payload = service.complete_json(OCR_PROMPT, buffer.getvalue(), "image/png")
+            except Exception as exc:
+                LOGGER.warning("In-process Gemini OCR failed: %s", exc)
+
+        if payload is None:
+            raise OcrError("No OCR engine or server could process the image")
+
         return OcrResult(
-            latex=payload.get("latex", ""),
-            plain=payload.get("plain", ""),
-            confidence_note=payload.get("confidence_note", ""),
-            kind=payload.get("kind", "unknown"),
+            latex=str(payload.get("latex", "")),
+            plain=str(payload.get("plain", "")),
+            confidence_note=str(payload.get("confidence_note", "")),
+            kind=str(payload.get("kind", "unknown")),
             engine=self.name,
             intent=str(payload.get("intent", "") or "").strip().lower(),
             chart=_chart_of(payload.get("chart")),
+            answer=str(payload.get("answer", "") or ""),
+            answer_latex=str(payload.get("answer_latex", "") or payload.get("answer", "") or ""),
+            steps=payload.get("steps") if isinstance(payload.get("steps"), list) else [],
             raw=payload,
         )
 

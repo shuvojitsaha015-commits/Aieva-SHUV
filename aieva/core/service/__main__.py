@@ -99,8 +99,13 @@ def _install_signals(service: BackgroundService) -> None:
             pass
 
 
+def _project_root() -> Path:
+    return Path(__file__).resolve().parents[3]
+
+
 def _start_overlay(config: ServiceConfig) -> None:
     """Start the floating window in its own process."""
+    root = _project_root()
     command = [
         sys.executable,
         "-m",
@@ -110,10 +115,11 @@ def _start_overlay(config: ServiceConfig) -> None:
     ]
     env = dict(os.environ)
     env["KIVY_NO_ARGS"] = "1"
+    env["PYTHONPATH"] = str(root)
     try:
         subprocess.Popen(
             command,
-            cwd=str(Path.cwd()),
+            cwd=str(root),
             env=env,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
@@ -125,6 +131,7 @@ def _start_overlay(config: ServiceConfig) -> None:
 
 def _start_tray(config: ServiceConfig) -> None:
     """Show the icon of Aieva in the system tray of Windows."""
+    root = _project_root()
     command = [
         sys.executable,
         "-m",
@@ -133,10 +140,13 @@ def _start_tray(config: ServiceConfig) -> None:
         "--state-file",
         str(config.state_file),
     ]
+    env = dict(os.environ)
+    env["PYTHONPATH"] = str(root)
     try:
         subprocess.Popen(
             command,
-            cwd=str(Path.cwd()),
+            cwd=str(root),
+            env=env,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )

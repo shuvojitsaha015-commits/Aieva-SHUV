@@ -123,12 +123,16 @@ def open_frontend(python_exe: str | Path | None = None) -> str:
     It is a **separate process**: the board keeps watching while the teacher
     works in the application.
     """
+    root = Path(__file__).resolve().parents[3]
     executable = str(python_exe or sys.executable)
     command = [executable, "-m", "aieva.ui.app"]
+    env = dict(os.environ)
+    env["PYTHONPATH"] = str(root)
     try:
         subprocess.Popen(  # noqa: S603 - the command is built here, not by the user
             command,
-            cwd=str(Path.cwd()),
+            cwd=str(root),
+            env=env,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )

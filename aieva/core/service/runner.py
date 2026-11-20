@@ -176,6 +176,8 @@ class BackgroundService:
                     clear_request(self.config.state_file)
                     run = self.scan_now(_region_of(request))
                     LOGGER.info("The board was read on request: %s", run.plain or run.latex)
+                elif self.config.source != "screen" or self._source is not None:
+                    self.run_once()
             except Exception as exc:
                 self.state.errors += 1
                 self.state.last_error = str(exc)
@@ -268,6 +270,12 @@ class BackgroundService:
         steps: list[dict[str, Any]] = []
         if self.config.auto_solve and text and intent.solve:
             answer, answer_latex, steps = self._solve(text)
+        if not answer:
+            gemini_ans = getattr(result, "answer", "") or ""
+            if gemini_ans:
+                answer = gemini_ans
+                answer_latex = getattr(result, "answer_latex", "") or gemini_ans
+                steps = steps or getattr(result, "steps", []) or []
         plot = ""
         if self.config.auto_plot and text and intent.graph:
             plot = self._draw(text)

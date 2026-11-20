@@ -2,7 +2,7 @@
 
 It is a full screen overlay with a semi transparent background, a draggable
 selection and a confirm / cancel pair of buttons. The result is a rectangle in
-the pixel coordinates of the capture.
+the pixel coordinates of the capture (top-down, matching desktop screen coordinates).
 """
 
 from __future__ import annotations
@@ -37,36 +37,39 @@ class RegionSelector(FloatLayout):
     # ------------------------------------------------------------------ ui
     def _build(self) -> None:
         with self.canvas.before:
-            Color(0, 0, 0, 0.45)
+            Color(0, 0, 0, 0.40)
             self._background = Rectangle(pos=self.pos, size=self.size)
         with self.canvas.after:
-            Color(theme.PRIMARY[0], theme.PRIMARY[1], theme.PRIMARY[2], 1)
-            self._border = Line(rectangle=(0, 0, 0, 0), width=1.5)
+            Color(theme.ACCENT[0], theme.ACCENT[1], theme.ACCENT[2], 1)
+            self._border = Line(rectangle=(0, 0, 0, 0), width=2.0)
         self.bind(pos=self._redraw, size=self._redraw)
 
         buttons = BoxLayout(
             orientation="horizontal",
-            size_hint=(0.6, None),
-            height=dp(theme.BUTTON_HEIGHT_DP),
+            size_hint=(0.5, None),
+            height=dp(48),
             pos_hint={"center_x": 0.5, "center_y": 0.08},
             spacing=dp(theme.GAP_DP),
         )
-        confirm = Button(
-            text="Use this area",
-            background_normal="",
-            background_color=theme.ACCENT,
-            color=theme.TEXT,
-            font_size=theme.sp_size(16),
-        )
-        confirm.bind(on_release=lambda _b: self._confirm())
         cancel = Button(
-            text="Cancel",
+            text="✕ Cancel",
             background_normal="",
             background_color=theme.SURFACE_ALT,
             color=theme.TEXT,
-            font_size=theme.sp_size(16),
+            font_size=theme.sp_size(15),
         )
         cancel.bind(on_release=lambda _b: self._cancel())
+
+        confirm = Button(
+            text="✓ Solve this area",
+            background_normal="",
+            background_color=theme.PRIMARY,
+            color=theme.TEXT,
+            font_size=theme.sp_size(15),
+            bold=True,
+        )
+        confirm.bind(on_release=lambda _b: self._confirm())
+
         buttons.add_widget(cancel)
         buttons.add_widget(confirm)
         self.add_widget(buttons)
@@ -75,6 +78,10 @@ class RegionSelector(FloatLayout):
     def on_touch_down(self, touch: Any) -> bool:
         if not self.collide_point(*touch.pos):
             return False
+        # If touched inside buttons, let buttons handle it
+        for child in self.children:
+            if child.collide_point(*touch.pos):
+                return super().on_touch_down(touch)
         self.start = touch.pos
         self.current = touch.pos
         self._redraw()
@@ -89,14 +96,14 @@ class RegionSelector(FloatLayout):
 
     def on_touch_up(self, touch: Any) -> bool:
         if self.start is None:
-            return False
+            return super().on_touch_up(touch)
         self.current = touch.pos
         self._redraw()
         return True
 
     # ----------------------------------------------------------------- api
     def region(self) -> tuple[int, int, int, int]:
-        """The selected rectangle in pixels (left, top, right, bottom)."""
+        """The selected rectangle (left, top, right, bottom)."""
         if self.start is None or self.current is None:
             return (0, 0, 0, 0)
         left = int(min(self.start[0], self.current[0]))
@@ -126,13 +133,16 @@ class RegionSelector(FloatLayout):
     def _redraw(self, *_args: Any) -> None:
         self._background.pos = self.pos
         self._background.size = self.size
-        region = self.region()
-        if region[2] > region[0] and region[3] > region[1]:
+        if self.start is not None and self.current is not None:
+            x_min = min(self.start[0], self.current[0])
+            x_max = max(self.start[0], self.current[0])
+            y_min = min(self.start[1], self.current[1])
+            y_max = max(self.start[1], self.current[1])
             self._border.rectangle = (
-                region[0],
-                self.height - region[3],
-                region[2] - region[0],
-                region[3] - region[1],
+                x_min,
+                y_min,
+                x_max - x_min,
+                y_max - y_min,
             )
         else:
             self._border.rectangle = (0, 0, 0, 0)

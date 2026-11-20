@@ -68,6 +68,8 @@ KV_FILE = Path(__file__).with_name("main.kv")
 DEFAULT_SUBJECT = "math"
 DEFAULT_SCREEN = "home"
 
+CANVAS_PUBLISH_SECONDS = 1.2
+
 #: Tabs – whiteboard removed.
 TABS: list[tuple[str, str]] = [
     ("home", "Home"),
@@ -438,6 +440,32 @@ class AievaApp(App):
         if self.manager is not None:
             self.manager.current = "solver"
         self.solver_screen.run_ocr(image)
+
+    def _on_canvas_changed(self, image: Any = None) -> None:
+        """Compatibility stub (whiteboard feature removed)."""
+        if getattr(self, "_canvas_publish", None) is not None:
+            self._canvas_publish.cancel()
+        self._canvas_publish = Clock.schedule_once(
+            lambda _dt: self._publish_canvas(image), getattr(self, "CANVAS_PUBLISH_SECONDS", 1.2)
+        )
+
+    def _publish_canvas(self, image: Any = None) -> None:
+        """Publish canvas/board image to service folder if available."""
+        if image is None:
+            image = self._export_canvas()
+        if image is not None:
+            try:
+                from aieva.core.service.canvas import publish_canvas
+                from aieva.core.service.config import ServiceConfig
+
+                folder = ServiceConfig.from_env().folder
+                publish_canvas(folder, image)
+            except Exception:
+                pass
+
+    def _export_canvas(self) -> Any:
+        """Compatibility stub."""
+        return None
 
     def _report_error(self, exc: BaseException) -> None:
         if isinstance(exc, ParseError):

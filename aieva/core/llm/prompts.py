@@ -16,6 +16,8 @@ Read the mathematical expression in the image and answer with STRICT JSON:
   "confidence_note": "one short sentence about how sure you are and what could be wrong",
   "kind": "expression | equation | text | unknown",
   "intent": "solve | graph | both | none",
+  "answer": "the direct final solution/answer if this is an equation, integral, derivative, or calculus problem",
+  "steps": [{"title": "step title", "explanation": "clear step explanation", "latex": "step formula"}],
   "chart": null
 }
 

@@ -59,12 +59,15 @@ def startup_folder_path() -> Path:
 def startup_script_text(python_exe: str, project_dir: str, extra_args: str = "") -> str:
     """The file that the startup folder runs."""
     arguments = f" -m aieva.core.service run {extra_args}".rstrip()
+    if "--tray" not in arguments:
+        arguments = f"{arguments} --tray"
     return (
         "@echo off\r\n"
         "rem Aieva - it starts with the computer\r\n"
         f'cd /d "{project_dir}"\r\n'
-        f'start "" "{python_exe}" -m uvicorn server.main:app --host 127.0.0.1 --port 8000\r\n'
-        "timeout /t 3 /nobreak >nul\r\n"
+        f'set PYTHONPATH={project_dir}\r\n'
+        f'start "" "{python_exe}" -m server.run\r\n'
+        "ping 127.0.0.1 -n 3 >nul\r\n"
         f'start "" "{python_exe}"{arguments}\r\n'
     )
 
@@ -72,7 +75,7 @@ def startup_script_text(python_exe: str, project_dir: str, extra_args: str = "")
 def install_startup_folder(
     python_exe: str | Path | None = None,
     project_dir: str | Path | None = None,
-    extra_args: str = "--overlay",
+    extra_args: str = "--overlay --tray",
 ) -> str:
     """Let Windows start Aieva with the computer (no rights needed)."""
     executable = pythonw_path(python_exe or sys.executable)
@@ -142,8 +145,9 @@ def launcher_text(
         "@echo off\r\n",
         "rem Aieva - the background service of the smart board\r\n",
         f'cd /d "{project_dir}"\r\n',
-        f'start "" "{python_exe}" -m uvicorn server.main:app --host 127.0.0.1 --port 8000\r\n',
-        "timeout /t 3 /nobreak >nul\r\n",
+        f'set PYTHONPATH={project_dir}\r\n',
+        f'start "" "{python_exe}" -m server.run\r\n',
+        "ping 127.0.0.1 -n 3 >nul\r\n",
     ]
     if with_tray and "--tray" not in arguments:
         arguments = f"{arguments} --tray"
@@ -195,7 +199,7 @@ def install_windows_task(
     project_dir: str | Path | None = None,
     trigger: str = "onlogon",
     name: str = TASK_NAME,
-    extra_args: str = "",
+    extra_args: str = "--overlay",
     runner: Runner | None = None,
     with_window: bool = False,
     with_tray: bool = True,

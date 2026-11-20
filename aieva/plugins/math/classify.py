@@ -53,7 +53,7 @@ _MATRIX_RE = re.compile(r"\[\[.*\]\]")
 _INTEGRAL_RE = re.compile(r"\\int\b|\\int_|\bintegrate\b", re.IGNORECASE)
 _LIMIT_RE = re.compile(r"\\lim\b|\blimit\b|\blim\b", re.IGNORECASE)
 _DERIVATIVE_RE = re.compile(
-    r"\\frac\s*\{d\}\s*\{d\w\}|\bd/d\w\b|\bdifferentiate\b|\bderivative\b", re.IGNORECASE
+    r"\\frac\s*\{d\}\s*\{d\w\}|\bd/d\w\b|\bdifferentiate\b|\bderivative\b|\bdiff\b", re.IGNORECASE
 )
 _INEQUALITY_RE = re.compile(r"(?<!-)(>=|<=|>|<|\\geq|\\leq|\\gt|\\lt)")
 _EQUATION_RE = re.compile(r"=")

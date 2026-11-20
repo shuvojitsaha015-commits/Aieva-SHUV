@@ -78,6 +78,7 @@ def _run_with_timeout(function: Callable[[], Any], timeout: float | None = None)
 COMMANDS: dict[str, str] = {
     "integrate": "integral",
     "integral": "integral",
+    "definite_integral": "definite_integral",
     "antiderivative": "integral",
     "differentiate": "derivative",
     "derivative": "derivative",
@@ -98,9 +99,77 @@ _LIMIT_POINT_RE = re.compile(r"([a-zA-Z])\s*(?:->|→)\s*([0-9.]+)")
 _FROM_TO_RE = re.compile(r"\bfrom\s+([0-9.]+)\s+to\s+([0-9.]+)\b", re.IGNORECASE)
 
 
+def _clean_outer_parens(s: str) -> str:
+    s = s.strip()
+    if s.startswith("(") and s.endswith(")"):
+        depth = 0
+        for i, ch in enumerate(s):
+            if ch == "(":
+                depth += 1
+            elif ch == ")":
+                depth -= 1
+            if depth == 0 and i < len(s) - 1:
+                return s
+        return s[1:-1].strip()
+    return s
+
+
 def split_command(text: str) -> tuple[str, str]:
-    """Split ``integrate x**2`` into ``("integrate", "x**2")``."""
+    """Split mathematical command or calculus expression into (command, body)."""
     cleaned = text.strip()
+
+    # 1. Definite integral in LaTeX: \int_{a}^{b} expr dx or \int_a^b expr dx
+    m_def = re.search(
+        r"\\int_\{?([^\}^_]+)\}?\^\{?([^\}^_]+)\}?\s*(.*?)(?:\\,?\s*d[a-zA-Z]|\s+d[a-zA-Z])?$",
+        cleaned,
+    )
+    if m_def:
+        body = m_def.group(3).strip()
+        body = re.sub(r"(?:\\,?\s*|\s+)d[a-zA-Z]\s*$", "", body).strip()
+        return "definite_integral", body
+
+    # 2. Indefinite integral in LaTeX: \int expr dx
+    if cleaned.startswith(r"\int"):
+        body = re.sub(r"^\\int\s*", "", cleaned)
+        body = re.sub(r"(?:\\,?\s*|\s+)d[a-zA-Z]\s*$", "", body).strip()
+        return "integrate", body
+
+    # 3. Functional integrate: integrate(expr, x) or integrate(expr, x, a, b)
+    m_int_fn = re.match(
+        r"^integrate\s*\(\s*(.*?)(?:\s*,\s*([a-zA-Z])(?:\s*,\s*([^\)]+)\s*,\s*([^\)]+))?)?\s*\)$",
+        cleaned,
+        re.IGNORECASE,
+    )
+    if m_int_fn:
+        body = m_int_fn.group(1).strip()
+        return "integrate", body
+
+    # 4. Derivative: \frac{d}{dx} expr or d/dx expr
+    m_diff_frac = re.match(
+        r"^(?:\\frac\s*\{\s*d\s*\}\s*\{\s*d[a-zA-Z]\s*\}|d\s*/\s*d[a-zA-Z])\s*(.*)$",
+        cleaned,
+        re.IGNORECASE,
+    )
+    if m_diff_frac:
+        body = _clean_outer_parens(m_diff_frac.group(1))
+        return "differentiate", body
+
+    # 5. diff(expr, x) or diff(expr)
+    m_diff_fn = re.match(
+        r"^diff\s*\(\s*(.*?)(?:\s*,\s*[a-zA-Z])?\s*\)$", cleaned, re.IGNORECASE
+    )
+    if m_diff_fn:
+        body = _clean_outer_parens(m_diff_fn.group(1))
+        return "differentiate", body
+
+    # 6. Limit: \lim_{x \to 0} or lim x->0
+    m_lim_tex = re.search(
+        r"\\lim_\{?([a-zA-Z])\s*(?:\\to|->|→)\s*([^\}]+)\}?\s*(.*)$", cleaned
+    )
+    if m_lim_tex:
+        body = m_lim_tex.group(3).strip()
+        return "limit", body
+
     match = _DIFFERENTIAL_RE.match(cleaned)
     if match:
         return "differentiate", cleaned[match.end() :].strip()
@@ -290,14 +359,21 @@ def _differentiate(expression: sympy.Basic) -> sympy.Basic:
 
 
 def _integrate(
-    expression: sympy.Basic, definite: bool, limits: tuple[float, float] | None = None
+    expression: sympy.Basic, definite: bool, limits: tuple[float, float] | None = None, raw_text: str = ""
 ) -> Any:
     variable = sympy.Symbol("x")
     if isinstance(expression, sympy.Equality):
         expression = expression.rhs
     if definite:
         if limits is None:
-            found = re.search(r"(\d+)\s*(?:,|to)\s*(\d+)", str(expression))
+            found_tex = re.search(r"\\int_\{?([^\}^_]+)\}?\^\{?([^\}^_]+)\}?", str(raw_text or expression))
+            if found_tex:
+                try:
+                    limits = (float(sympy.sympify(found_tex.group(1))), float(sympy.sympify(found_tex.group(2))))
+                except Exception:
+                    pass
+        if limits is None:
+            found = re.search(r"(\d+)\s*(?:,|to)\s*(\d+)", str(raw_text or expression))
             limits = (float(found.group(1)), float(found.group(2))) if found else None
         if limits is not None:
             low, high = limits
@@ -310,12 +386,19 @@ def _integrate(
     return sympy.integrate(expression, variable)
 
 
-def _limit(expression: sympy.Basic, point: float | None = None) -> Any:
+def _limit(expression: sympy.Basic, point: float | None = None, raw_text: str = "") -> Any:
     variable = sympy.Symbol("x")
     if isinstance(expression, sympy.Equality):
         expression = expression.rhs
     if point is None:
-        match = re.search(r"([a-zA-Z])\s*(?:->|→)\s*([0-9.]+)", str(expression))
+        match_tex = re.search(r"\\lim_\{?[a-zA-Z]\s*(?:\\to|->|→)\s*([^\}]+)\}?", str(raw_text or expression))
+        if match_tex:
+            try:
+                point = float(sympy.sympify(match_tex.group(1)))
+            except Exception:
+                pass
+    if point is None:
+        match = re.search(r"([a-zA-Z])\s*(?:->|→)\s*([0-9.]+)", str(raw_text or expression))
         point = float(match.group(2)) if match else 0.0
     point = sympy.Rational(str(point))
     if variable not in expression.free_symbols:
@@ -524,6 +607,8 @@ def solve_expression(
     warnings: list[str] = []
 
     command, body = split_command(text)
+    if command and command in COMMANDS:
+        problem_type = COMMANDS[command]
 
     if expression is None:
         if problem_type == "system":
@@ -579,12 +664,10 @@ def solve_expression(
             plot_expression = sympy.latex(expression)
         elif problem_type in ("integral", "definite_integral"):
             answer = _run_with_timeout(
-                lambda: _integrate(expression, problem_type == "definite_integral")
+                lambda: _integrate(expression, problem_type == "definite_integral", raw_text=text)
             )
         elif problem_type == "limit":
-            match = _LIMIT_POINT_RE.search(text)
-            point = float(match.group(2)) if match else 0.0
-            answer = _run_with_timeout(lambda: _limit(expression, point))
+            answer = _run_with_timeout(lambda: _limit(expression, raw_text=text))
         elif problem_type == "simplify":
             answer = _run_with_timeout(lambda: _simplify(expression))
         elif problem_type == "expand_factor":
